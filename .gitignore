@@ -1,0 +1,14 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+.DS_Store
+*.log
+*.tmp
+*.swp
+.env
+.env.*
+!.env.example
+.worktrees/
+*AGENTS.md
+CODEX_*

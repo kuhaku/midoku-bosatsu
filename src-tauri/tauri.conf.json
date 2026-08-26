@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "未読菩薩",
+  "version": "0.1.0",
+  "identifier": "com.github.midokubosatsu",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "未読菩薩",
+        "width": 1100,
+        "height": 800,
+        "minWidth": 360,
+        "minHeight": 480,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ],
+    "resources": [
+      "resources/global.toml",
+      "resources/bbs.toml",
+      "resources/reader-style.css",
+      "resources/notify.ogg",
+      "resources/notify.wav"
+    ]
+  }
+}

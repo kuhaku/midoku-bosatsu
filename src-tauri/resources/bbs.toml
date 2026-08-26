@@ -1,0 +1,122 @@
+# 未読菩薩 (Midoku Bosatsu) - 掲示板設定
+config_version = 1
+
+# -----------------------------------------------------------------------------
+# あやしいわーるど＠みさお
+# -----------------------------------------------------------------------------
+[[sites]]
+id = "misao"
+name = "あやしいわーるど＠みさお"
+enabled = true
+encoding = "shift_jis"
+user_agent = "Midoku Bosatsu"
+timezone_offset_minutes = 540
+timezone_region = "日本"
+[sites.badge_style]
+text_color = "#eefafa"
+background_color = "#0b5555"
+border_color = "#2f6262"
+
+[sites.fetch]
+url = "https://misao.mixh.jp/cgi-bin/bbs.cgi"
+
+[sites.post_parser]
+mode = "legacy_anchor_siblings"
+anchor_selector = "a[name]"
+id_attribute = "name"
+header_tag = "font"
+name_tag = "b"
+info_tag = "font"
+body_container_tag = "blockquote"
+body_tag = "pre"
+date_prefix = "投稿日："
+timestamp_regex = '(?P<year>\d{4})/(?P<month>\d{2})/(?P<day>\d{2})\([^)]+\)\s*(?P<hour>\d{2})(?:時|:)(?P<minute>\d{2})(?:分|:)(?P<second>\d{2})(?:秒)?'
+
+[sites.reload_form]
+form_selector = "form"
+submit_input_name = "midokureload"
+submit_input_name_fallbacks = ["meload", "readnew"]
+submit_value_regex = "未読"
+method = "POST"
+referer = "https://misao.mixh.jp/cgi-bin/bbs.cgi"
+include_hidden = true
+
+# -----------------------------------------------------------------------------
+# あやしいわーるど＠本店退避
+# -----------------------------------------------------------------------------
+[[sites]]
+id = "honten-taihi"
+name = "あやしいわーるど＠本店退避"
+enabled = true
+encoding = "shift_jis"
+user_agent = "Midoku Bosatsu"
+timezone_offset_minutes = 540
+timezone_region = "日本"
+[sites.badge_style]
+text_color = "#eefafa"
+background_color = "#303c6d"
+border_color = "#2f6262"
+
+[sites.fetch]
+url = "https://honten.info/bbs/cgi-bin/bbs.cgi"
+
+[sites.post_parser]
+mode = "legacy_anchor_siblings"
+anchor_selector = "a[name]"
+id_attribute = "name"
+header_tag = "font"
+name_tag = "b"
+info_tag = "font"
+body_container_tag = "blockquote"
+body_tag = "pre"
+date_prefix = "投稿日："
+timestamp_regex = '(?P<year>\d{4})/(?P<month>\d{2})/(?P<day>\d{2})\([^)]+\)\s*(?P<hour>\d{2})(?:時|:)(?P<minute>\d{2})(?:分|:)(?P<second>\d{2})(?:秒)?'
+
+[sites.reload_form]
+form_selector = "form"
+submit_input_name = "meload"
+submit_input_name_fallbacks = ["midokureload", "readnew"]
+submit_value_regex = "未読"
+method = "POST"
+referer = "https://honten.info/bbs/cgi-bin/bbs.cgi"
+include_hidden = true
+
+# -----------------------------------------------------------------------------
+# あやしいわーるど＠おこめ.暫暫定
+# -----------------------------------------------------------------------------
+[[sites]]
+id = "okome-znti"
+name = "あやしいわーるど＠おこめ.暫暫定"
+enabled = true
+encoding = "utf-8"
+user_agent = "Midoku Bosatsu"
+timezone_offset_minutes = 540
+timezone_region = "日本"
+[sites.badge_style]
+text_color = "#eefafa"
+background_color = "#202124"
+border_color = "#2f6262"
+
+[sites.fetch]
+url = "https://komekuitai.sakura.ne.jp/znti/bbs.php"
+
+[sites.post_parser]
+mode = "css_post"
+post_selector = "div.m"
+post_id_attribute = "id"
+post_id_prefix = "m"
+title_selector = ".ms"
+name_selector = ".mun"
+date_selector = ".md"
+body_selector = "pre.msgnormal"
+date_prefix = "投稿日："
+timestamp_regex = '(?P<year>\d{4})/(?P<month>\d{2})/(?P<day>\d{2})\([^)]+\)\s*(?P<hour>\d{2})(?:時|:)(?P<minute>\d{2})(?:分|:)(?P<second>\d{2})(?:秒)?'
+
+[sites.reload_form]
+form_selector = "form"
+submit_input_name = "readnew"
+submit_input_name_fallbacks = ["meload", "midokureload"]
+submit_value_regex = "未読|Unread|UNREAD"
+method = "POST"
+referer = "https://komekuitai.sakura.ne.jp/znti/bbs.php"
+include_hidden = true

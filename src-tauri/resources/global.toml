@@ -1,0 +1,56 @@
+# 未読菩薩 (Midoku Bosatsu) - 一般設定
+# フォント設定は global.toml には置かず、reader-style.css で管理します。
+# 一般設定GUIから変更した場合も reader-style.css のCSS変数へ保存されます。
+
+config_version = 3
+
+[global]
+# BBSへの過剰な負荷を避けるため30秒以上を推奨。実行時も最低30秒に制限する。
+poll_interval_seconds = 90
+max_posts = 666
+post_saving_enabled = true
+# newest_first: 新しい投稿を上 / oldest_first: 古い投稿を上
+post_order = "newest_first"
+
+# 投稿本文に含まれるHTTP(S)画像を読み込んで表示する。
+# falseなら画像URLからサムネイル用<img>を生成しない。掲示板HTML中のIMGタグは常に無視する。
+show_post_images = true
+
+# trueなら画像URLの左に [詳] を表示し、「詳」からGoogleレンズを開く。
+show_image_detail_link = true
+# 大きな画像がタイムラインを占有しすぎないための表示上限。
+max_image_height_px = 40
+# ホバー時は縦横比を維持し、幅・高さをそれぞれウィンドウのこの割合までに制限する。
+image_hover_window_percent = 90
+keyboard_shortcuts_enabled = true
+
+# 「参考：...」リンクを親子関係として使い、同じスレッドの投稿をツリー表示する。
+# 初期値はOFF。
+tree_view_enabled = false
+# 「木」「消」の表示設定。初期値はどちらも表示。
+hide_tree_link = false
+hide_thread_hide_link = false
+
+# 本文中の &#123; / &#x1F600; のような数値文字参照をUnicode文字へ展開する。
+# 初期値はOFF。
+expand_numeric_character_references = false
+
+# NGワード。正規表現を指定する。GUIでは改行を | と同じOR条件として扱う。
+# ハンドルは「投稿者名・メールアドレス・題名」をまとめて判定する。
+ng_handle_patterns = ""
+ng_body_patterns = ""
+
+# ハイライト。正規表現を指定する。GUIでは改行を | と同じOR条件として扱う。
+# ハンドルは「投稿者名・題名」を対象にする。メールアドレス欄は対象外。
+highlight_handle_patterns = ""
+highlight_body_patterns = ""
+
+# レス通知。初期状態ではOFF。
+reply_notification_enabled = false
+# 通知音。初期状態ではOFF。
+reply_notification_sound_enabled = false
+# default: bundled notify.ogg / custom: アプリデータ領域へコピーした独自音声
+reply_notification_sound_kind = "default"
+reply_notification_sound_custom_name = ""
+# false: 直接返信のみ / true: 返信ツリー全体
+reply_notification_include_descendants = false

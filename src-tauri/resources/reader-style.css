@@ -1,0 +1,30 @@
+/* 未読菩薩 (Midoku Bosatsu) - 表示スタイル設定
+   一般設定GUIと連動し、このCSSファイルがユーザー設定ディレクトリへコピーされます。 */
+:root {
+  --system-font-family: system-ui, -apple-system, BlinkMacSystemFont, Yu Gothic UI, Segoe UI, Roboto, Noto Sans JP, sans-serif;
+  --system-font-size: 16px;
+  --post-font-family: MS Gothic, BIZ UDGothic, Yu Gothic UI, ui-monospace, monospace;
+  --post-font-size: 16px;
+
+  --post-background-color: #004040;
+  --post-text-color: #ffffff;
+  --post-quote-color: #d1d1d1;
+  --post-link-unvisited-color: #eeffee;
+  --post-link-hover-color: #ea4335;
+  --post-link-visited-color: #dddddd;
+  --post-author-color: #ffffff;
+  --post-subject-color: #ffffff;
+  --post-unread-background-color: #195353;
+  --unread-badge-text-color: #ffffff;
+  --unread-badge-background-color: #195353;
+
+  --post-date-color: #b9cccc;
+  --post-border-color: #2f6262;
+  --unread-accent-color: #b9dddd;
+
+  --post-highlight-text-color: #000000;
+  --post-highlight-background-color: #ffff00;
+  --current-post-border-color: #fbbc05;
+  --tree-header-background-color: #57763b;
+  --tree-read-post-text-color: #cacaba;
+}
