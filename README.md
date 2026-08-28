@@ -13,3 +13,9 @@
 - キーボードだけでもある程度操作できる
 - ツリー表示対応
 - 省メモリ設計
+
+## スクリーンショット
+
+![https://github.com/kuhaku/midoku-bosatsu/blob/main/midoku-bosatsu1.png?raw=true](https://github.com/kuhaku/midoku-bosatsu/blob/main/midoku-bosatsu1.png?raw=true)
+
+![https://github.com/kuhaku/midoku-bosatsu/blob/main/midoku-bosatsu2.png?raw=true](https://github.com/kuhaku/midoku-bosatsu/blob/main/midoku-bosatsu2.png?raw=true)
