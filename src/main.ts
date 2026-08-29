@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
+import { checkForAppUpdate, createStartupUpdateSequence } from './app_updates.ts';
 import { removeTreeEmptyLines } from './tree_body.ts';
 import { buildTreeBodyPrefix } from './tree_prefix.ts';
 import { expandNumericCharacterReferences } from './numeric_character_references.ts';
@@ -5353,6 +5354,12 @@ function resetPostLog(): void {
   try { clearPostLog(localStorage, POST_LOG_STORAGE_KEY); } catch { /* no persisted log available */ }
 }
 
+const runStartupUpdateSequence = createStartupUpdateSequence({
+  runInitialFetch: () => runFetchCycle(true),
+  startReloadTimer: () => startReloadTimer(),
+  checkForAppUpdate,
+});
+
 async function bootstrap(): Promise<void> {
   try {
     const loadedConfig = await invoke<ReaderConfig>('get_reader_config');
@@ -5382,11 +5389,9 @@ async function bootstrap(): Promise<void> {
 
     if (enabledSites.length === 0) {
       noticeElement.textContent = 'BBS設定から取得先を追加するか、BBSを有効にしてください。';
-      return;
     }
 
-    await runFetchCycle(true);
-    startReloadTimer();
+    await runStartupUpdateSequence(enabledSites.length > 0);
   } catch (error) {
     const message = String(error);
     setFooterError(message);

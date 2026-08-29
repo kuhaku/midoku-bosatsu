@@ -425,11 +425,19 @@ async fn submit_new_post(
 pub fn run() {
     let reader_state = ReaderState::new().expect("failed to initialize HTTP client");
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_dialog::init());
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_process::init());
+
+    builder
         .manage(reader_state)
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             config::ensure_user_configs(app.handle()).map_err(std::io::Error::other)?;
             let reply_service =
                 ReplyNotificationService::new(app.handle()).map_err(std::io::Error::other)?;

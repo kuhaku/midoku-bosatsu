@@ -10,5 +10,6 @@ src-tauri/gen/
 .env.*
 !.env.example
 .worktrees/
+docs/*
 *AGENTS.md
 CODEX_*
