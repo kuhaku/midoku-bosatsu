@@ -2,15 +2,16 @@ const FALLBACK_UPDATE_NOTES = 'リリースノートはありません。';
 const UPDATE_NOTES_MAX_LENGTH = 240;
 const UPDATE_FAILURE_MESSAGE = 'アップデートを完了できませんでした。アプリはそのまま利用できます。';
 
-type UpdateResult = {
+export type AppUpdate = {
   version: string;
+  date?: string;
   body?: string | null;
   download: () => Promise<void>;
   install: () => Promise<void>;
 };
 
 type AppUpdateDependencies = {
-  check: () => Promise<UpdateResult | null>;
+  check: () => Promise<AppUpdate | null>;
   relaunch: () => Promise<void>;
   confirm: (message: string) => boolean;
   alert: (message: string) => void;
@@ -97,6 +98,19 @@ export function checkForAppUpdate(): Promise<void> {
     inFlightCheck = null;
   });
   return inFlightCheck;
+}
+
+export function checkForManualAppUpdate(): Promise<AppUpdate | null> {
+  return appUpdateDependencies.check();
+}
+
+export async function installAppUpdate(
+  update: AppUpdate,
+  dependencies: Pick<AppUpdateDependencies, 'relaunch'> = appUpdateDependencies,
+): Promise<void> {
+  await update.download();
+  await update.install();
+  await dependencies.relaunch();
 }
 
 export function createStartupUpdateSequence(

@@ -3,7 +3,13 @@ import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
-import { checkForAppUpdate, createStartupUpdateSequence } from './app_updates.ts';
+import {
+  checkForAppUpdate,
+  checkForManualAppUpdate,
+  createStartupUpdateSequence,
+  installAppUpdate,
+  type AppUpdate,
+} from './app_updates.ts';
 import { removeTreeEmptyLines } from './tree_body.ts';
 import { buildTreeBodyPrefix } from './tree_prefix.ts';
 import { expandNumericCharacterReferences } from './numeric_character_references.ts';
@@ -998,6 +1004,13 @@ app.innerHTML = `
             <div class="version-settings-content">
               <h2>未読菩薩</h2>
               <p id="app-version">未読菩薩</p>
+              <button id="check-app-update" type="button">アップデートを確認</button>
+              <div id="available-app-update" hidden>
+                <p id="available-app-update-version"></p>
+                <p id="available-app-update-date"></p>
+                <button id="install-app-update" type="button">アップデートする</button>
+              </div>
+              <p id="app-update-status" class="bbs-settings-message" aria-live="polite"></p>
             </div>
           </div>
         </section>
@@ -1085,6 +1098,13 @@ const settingsButton = mustElement<HTMLButtonElement>('#settings-button');
 const settingsDialog = mustElement<HTMLDialogElement>('#settings-dialog');
 const settingsCloseButton = mustElement<HTMLButtonElement>('#settings-close');
 const appVersion = mustElement<HTMLParagraphElement>('#app-version');
+const checkAppUpdateButton = mustElement<HTMLButtonElement>('#check-app-update');
+const availableAppUpdateElement = mustElement<HTMLDivElement>('#available-app-update');
+const availableAppUpdateVersion = mustElement<HTMLParagraphElement>('#available-app-update-version');
+const availableAppUpdateDate = mustElement<HTMLParagraphElement>('#available-app-update-date');
+const installAppUpdateButton = mustElement<HTMLButtonElement>('#install-app-update');
+const appUpdateStatus = mustElement<HTMLParagraphElement>('#app-update-status');
+let availableAppUpdate: AppUpdate | null = null;
 
 async function showAppVersion(): Promise<void> {
   try {
@@ -1095,6 +1115,63 @@ async function showAppVersion(): Promise<void> {
 }
 
 void showAppVersion();
+
+function showAppUpdateStatus(message: string, error = false): void {
+  appUpdateStatus.textContent = message;
+  appUpdateStatus.classList.toggle('settings-message-error', error);
+}
+
+function formatAppUpdateDate(date: string | undefined): string {
+  if (!date) return '公開日: 不明';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return `公開日: ${date}`;
+  return `公開日: ${new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long' }).format(parsed)}`;
+}
+
+async function checkForManualUpdate(): Promise<void> {
+  checkAppUpdateButton.disabled = true;
+  installAppUpdateButton.disabled = true;
+  availableAppUpdateElement.hidden = true;
+  availableAppUpdate = null;
+  showAppUpdateStatus('アップデートを確認しています。');
+
+  try {
+    const update = await checkForManualAppUpdate();
+    if (!update) {
+      showAppUpdateStatus('最新バージョンです。');
+      return;
+    }
+
+    availableAppUpdate = update;
+    availableAppUpdateVersion.textContent = `新しいバージョン: v${update.version}`;
+    availableAppUpdateDate.textContent = formatAppUpdateDate(update.date);
+    availableAppUpdateElement.hidden = false;
+    installAppUpdateButton.disabled = false;
+    showAppUpdateStatus('アップデートが見つかりました。');
+  } catch (error) {
+    console.error(error);
+    showAppUpdateStatus('アップデートを確認できませんでした。しばらくしてからもう一度お試しください。', true);
+  } finally {
+    checkAppUpdateButton.disabled = false;
+  }
+}
+
+async function installManualUpdate(): Promise<void> {
+  if (!availableAppUpdate) return;
+
+  checkAppUpdateButton.disabled = true;
+  installAppUpdateButton.disabled = true;
+  showAppUpdateStatus('アップデートをダウンロードしてインストールしています。');
+
+  try {
+    await installAppUpdate(availableAppUpdate);
+  } catch (error) {
+    console.error(error);
+    checkAppUpdateButton.disabled = false;
+    installAppUpdateButton.disabled = false;
+    showAppUpdateStatus('アップデートを完了できませんでした。アプリはそのまま利用できます。', true);
+  }
+}
 
 const settingsTabGeneralButton = mustElement<HTMLButtonElement>('#settings-tab-general');
 const settingsTabBbsButton = mustElement<HTMLButtonElement>('#settings-tab-bbs');
@@ -5783,6 +5860,14 @@ settingsTabResetButton.addEventListener('click', () => {
 
 settingsTabVersionButton.addEventListener('click', () => {
   switchSettingsTab('version');
+});
+
+checkAppUpdateButton.addEventListener('click', () => {
+  void checkForManualUpdate();
+});
+
+installAppUpdateButton.addEventListener('click', () => {
+  void installManualUpdate();
 });
 
 resetReplyNotificationList.addEventListener('change', () => {

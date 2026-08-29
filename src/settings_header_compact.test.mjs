@@ -28,3 +28,14 @@ test('設定画面のバージョンタブに実行中の未読菩薩のバー�
   assert.match(mainSource, /settingsTabVersionButton\.addEventListener\('click', \(\) => \{[\s\S]*?switchSettingsTab\('version'\);/u);
   assert.match(mainSource, /appVersion\.textContent = `未読菩薩 v\$\{await getVersion\(\)\}`;/u);
 });
+
+test('バージョンタブで更新を確認し、見つかった更新を適用できる', () => {
+  const versionSettings = mainSource.match(/<section id="version-settings-dialog"[\s\S]*?<\/section>/u)?.[0];
+
+  assert.ok(versionSettings, 'バージョン設定の範囲が見つかりません');
+  assert.match(versionSettings, /id="check-app-update"/u);
+  assert.match(versionSettings, /id="app-update-status"/u);
+  assert.match(versionSettings, /id="install-app-update"/u);
+  assert.match(mainSource, /checkAppUpdateButton\.addEventListener\('click', \(\) => \{[\s\S]*?void checkForManualUpdate\(\);/u);
+  assert.match(mainSource, /installAppUpdateButton\.addEventListener\('click', \(\) => \{[\s\S]*?void installManualUpdate\(\);/u);
+});

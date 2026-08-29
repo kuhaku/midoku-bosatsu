@@ -1548,6 +1548,22 @@ button:disabled { cursor: default; opacity: .45; }
   color: var(--color-muted);
 }
 
+.version-settings-content > button {
+  margin-top: 16px;
+}
+
+#available-app-update {
+  margin-top: 16px;
+}
+
+#available-app-update button {
+  margin-top: 12px;
+}
+
+#app-update-status {
+  min-height: 1.5em;
+}
+
 .reset-item-list {
   display: grid;
   gap: 6px;

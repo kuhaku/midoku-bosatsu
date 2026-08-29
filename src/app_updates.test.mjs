@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  checkForManualAppUpdate,
   checkForAppUpdate,
   configureAppUpdateDependencies,
   createAppUpdateChecker,
   createStartupUpdateSequence,
+  installAppUpdate,
   formatUpdateNotes,
   resetAppUpdateStateForTests,
 } from './app_updates.ts';
@@ -67,6 +69,44 @@ test('checkForAppUpdateは確認中と完了後の両方で一度しか走らな
   await checkForAppUpdate();
 
   assert.equal(checkCalls.length, 1);
+});
+
+test('手動の更新確認は起動時の確認後でも毎回最新の更新情報を取得する', async () => {
+  const updates = [
+    null,
+    { version: '0.2.2', date: '2026-08-30T00:00:00Z', body: null, download: async () => {}, install: async () => {} },
+    null,
+  ];
+  configureAppUpdateDependencies({
+    check: async () => updates.shift(),
+    relaunch: async () => {},
+    confirm: () => false,
+    alert: () => {},
+    logError: () => {},
+  });
+
+  await checkForAppUpdate();
+  const availableUpdate = await checkForManualAppUpdate();
+  const noUpdate = await checkForManualAppUpdate();
+
+  assert.equal(availableUpdate?.version, '0.2.2');
+  assert.equal(availableUpdate?.date, '2026-08-30T00:00:00Z');
+  assert.equal(noUpdate, null);
+});
+
+test('手動で選んだ更新はダウンロード、インストール、再起動の順で適用する', async () => {
+  const events = [];
+  await installAppUpdate({
+    version: '0.2.2',
+    date: '2026-08-30T00:00:00Z',
+    body: null,
+    download: async () => events.push('download'),
+    install: async () => events.push('install'),
+  }, {
+    relaunch: async () => events.push('relaunch'),
+  });
+
+  assert.deepEqual(events, ['download', 'install', 'relaunch']);
 });
 
 test('更新がある場合はバージョンとリリースノートを確認文へ表示する', async () => {
