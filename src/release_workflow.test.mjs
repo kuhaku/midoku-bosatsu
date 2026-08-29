@@ -101,6 +101,8 @@ test('release workflow accepts app-v tags and configures signing and release pub
   assert.match(workflow, /src-tauri\/Cargo\.toml/);
   assert.match(workflow, /verify-release-version\.mjs/);
   assert.match(workflow, /max-parallel:\s*1/);
+  assert.match(workflow, /name: Windows x64\s+platform: windows-latest\s+args: --bundles nsis/);
+  assert.doesNotMatch(workflow, /args: --bundles nsis,msi/);
   assert.match(workflow, /tagName:\s*app-v__VERSION__/);
   assert.match(workflow, /releaseName:\s*'未読菩薩 v__VERSION__'/);
   assert.match(workflow, /releaseDraft:\s*true/);
