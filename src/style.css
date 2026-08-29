@@ -1534,6 +1534,19 @@ button:disabled { cursor: default; opacity: .45; }
   padding: 18px 20px;
 }
 
+.version-settings-content {
+  padding: 18px 20px;
+}
+
+.version-settings-content h2 {
+  margin: 0;
+}
+
+.version-settings-content p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+}
+
 .reset-item-list {
   display: grid;
   gap: 6px;

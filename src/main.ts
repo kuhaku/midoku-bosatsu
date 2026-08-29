@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
@@ -466,6 +467,7 @@ app.innerHTML = `
         <button id="settings-tab-bbs" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="bbs-settings-dialog">BBS設定</button>
         <button id="settings-tab-config-file" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="config-file-settings-dialog">設定のインポート/エクスポート</button>
         <button id="settings-tab-reset" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="reset-settings-dialog">リセット</button>
+        <button id="settings-tab-version" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="version-settings-dialog">バージョン</button>
       </nav>
 
       <div class="settings-panels">
@@ -966,6 +968,14 @@ app.innerHTML = `
             <div id="reset-settings-message" class="bbs-settings-message" aria-live="polite"></div>
           </div>
         </section>
+        <section id="version-settings-dialog" class="general-settings-dialog settings-tab-panel" aria-labelledby="settings-tab-version" hidden>
+          <div class="general-settings-shell version-settings-shell">
+            <div class="version-settings-content">
+              <h2>未読菩薩</h2>
+              <p id="app-version">未読菩薩</p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </dialog>
@@ -1049,14 +1059,28 @@ const unreadJumpButton = mustElement<HTMLButtonElement>('#unread-jump-button');
 const settingsButton = mustElement<HTMLButtonElement>('#settings-button');
 const settingsDialog = mustElement<HTMLDialogElement>('#settings-dialog');
 const settingsCloseButton = mustElement<HTMLButtonElement>('#settings-close');
+const appVersion = mustElement<HTMLParagraphElement>('#app-version');
+
+async function showAppVersion(): Promise<void> {
+  try {
+    appVersion.textContent = `未読菩薩 v${await getVersion()}`;
+  } catch {
+    // Tauri のバージョン情報を取得できない開発環境ではアプリ名のみを表示する。
+  }
+}
+
+void showAppVersion();
+
 const settingsTabGeneralButton = mustElement<HTMLButtonElement>('#settings-tab-general');
 const settingsTabBbsButton = mustElement<HTMLButtonElement>('#settings-tab-bbs');
 const settingsTabConfigFileButton = mustElement<HTMLButtonElement>('#settings-tab-config-file');
 const settingsTabResetButton = mustElement<HTMLButtonElement>('#settings-tab-reset');
+const settingsTabVersionButton = mustElement<HTMLButtonElement>('#settings-tab-version');
 const generalSettingsDialog = mustElement<HTMLElement>('#general-settings-dialog');
 const generalSettingsCloseButton = mustElement<HTMLButtonElement>('#general-settings-close');
 const configFileSettingsDialog = mustElement<HTMLElement>('#config-file-settings-dialog');
 const resetSettingsDialog = mustElement<HTMLElement>('#reset-settings-dialog');
+const versionSettingsDialog = mustElement<HTMLElement>('#version-settings-dialog');
 const resetReplyNotificationList = mustElement<HTMLDivElement>('#reset-reply-notification-list');
 const resetHiddenThreadList = mustElement<HTMLDivElement>('#reset-hidden-thread-list');
 const resetRemoveReplyNotificationsButton = mustElement<HTMLButtonElement>('#reset-remove-reply-notifications');
@@ -1254,7 +1278,7 @@ let savedReaderStyle: ReaderStyleConfig | null = null;
 let generalDraftGlobal: GlobalConfig | null = null;
 let generalDraftStyle: ReaderStyleConfig | null = null;
 let generalSettingsDirty = false;
-type SettingsTab = 'general' | 'bbs' | 'config-file' | 'reset';
+type SettingsTab = 'general' | 'bbs' | 'config-file' | 'reset' | 'version';
 let activeSettingsTab: SettingsTab = 'general';
 let ngHandleRegex: RegExp | null = null;
 let ngBodyRegex: RegExp | null = null;
@@ -4094,22 +4118,27 @@ function switchSettingsTab(tab: SettingsTab): void {
   const showBbs = tab === 'bbs';
   const showConfigFile = tab === 'config-file';
   const showReset = tab === 'reset';
+  const showVersion = tab === 'version';
   generalSettingsDialog.hidden = !showGeneral;
   bbsSettingsDialog.hidden = !showBbs;
   configFileSettingsDialog.hidden = !showConfigFile;
   resetSettingsDialog.hidden = !showReset;
+  versionSettingsDialog.hidden = !showVersion;
   generalSettingsDialog.setAttribute('aria-hidden', String(!showGeneral));
   bbsSettingsDialog.setAttribute('aria-hidden', String(!showBbs));
   configFileSettingsDialog.setAttribute('aria-hidden', String(!showConfigFile));
   resetSettingsDialog.setAttribute('aria-hidden', String(!showReset));
+  versionSettingsDialog.setAttribute('aria-hidden', String(!showVersion));
   settingsTabGeneralButton.classList.toggle('is-active', showGeneral);
   settingsTabBbsButton.classList.toggle('is-active', showBbs);
   settingsTabConfigFileButton.classList.toggle('is-active', showConfigFile);
   settingsTabResetButton.classList.toggle('is-active', showReset);
+  settingsTabVersionButton.classList.toggle('is-active', showVersion);
   settingsTabGeneralButton.setAttribute('aria-selected', String(showGeneral));
   settingsTabBbsButton.setAttribute('aria-selected', String(showBbs));
   settingsTabConfigFileButton.setAttribute('aria-selected', String(showConfigFile));
   settingsTabResetButton.setAttribute('aria-selected', String(showReset));
+  settingsTabVersionButton.setAttribute('aria-selected', String(showVersion));
   if (showReset) void refreshResetSettings();
 }
 
@@ -5676,6 +5705,10 @@ settingsTabConfigFileButton.addEventListener('click', () => {
 
 settingsTabResetButton.addEventListener('click', () => {
   switchSettingsTab('reset');
+});
+
+settingsTabVersionButton.addEventListener('click', () => {
+  switchSettingsTab('version');
 });
 
 resetReplyNotificationList.addEventListener('change', () => {
