@@ -104,11 +104,11 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.match(workflow, /name: Windows x64\s+artifact: windows-x64\s+platform: windows-latest\s+portable: true/);
   assert.match(
     workflow,
-    /name: macOS Apple Silicon[\s\S]*?args: --target aarch64-apple-darwin --bundles dmg,updater/,
+    /name: macOS Apple Silicon[\s\S]*?args: --target aarch64-apple-darwin --bundles app,dmg/,
   );
   assert.match(
     workflow,
-    /name: macOS Intel[\s\S]*?args: --target x86_64-apple-darwin --bundles dmg,updater/,
+    /name: macOS Intel[\s\S]*?args: --target x86_64-apple-darwin --bundles app,dmg/,
   );
   assert.match(workflow, /name: Build portable Windows binary[\s\S]*?npm run tauri -- build --no-bundle/);
   assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
