@@ -9,7 +9,7 @@ use crate::{
 use super::encoding::encode_form_component;
 
 pub fn parse_reload_form(html: &str, site: &SiteConfig) -> Result<ParsedReloadForm, String> {
-    let document = kuchikiki::parse_html().one(html);
+    let document = kuchikiki::parse_html().one(html).document_node;
     let forms = document
         .select(&site.reload_form.form_selector)
         .map_err(|_| {
@@ -208,6 +208,23 @@ mod tests {
                 include_hidden: true,
             },
         }
+    }
+
+    #[test]
+    fn parses_reload_form_after_html_parse_finalization() {
+        let html = r#"
+            <form action="/bbs.cgi" method="post">
+              <input type="hidden" name="token" value="abc">
+              <input type="submit" name="midokureload" value="未読">
+            </form>
+        "#;
+
+        let parsed = parse_reload_form(html, &site_config()).unwrap();
+
+        assert!(parsed
+            .fields
+            .iter()
+            .any(|field| field.name == "midokureload"));
     }
 
     #[test]

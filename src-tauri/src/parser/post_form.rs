@@ -27,7 +27,7 @@ const NON_POST_SUBMIT_NAMES: &[&str] = &[
 /// `<!-- <input ...> -->` / `<!-- <textarea ...> -->` のようなコメント内タグは
 /// controlsにもsubmit判定にも一切入らない。
 pub fn parse_post_form(html: &str, source_url: &str) -> Result<Option<BbsPostForm>, String> {
-    let document = kuchikiki::parse_html().one(html);
+    let document = kuchikiki::parse_html().one(html).document_node;
     let forms = document
         .select("form")
         .map_err(|_| "form selector の解析に失敗しました".to_string())?;

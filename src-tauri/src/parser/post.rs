@@ -14,7 +14,7 @@ pub fn parse_posts(html: &str, site: &SiteConfig) -> Result<Vec<ParsedPost>, Str
 }
 
 fn parse_legacy_anchor_siblings(html: &str, site: &SiteConfig) -> Result<Vec<ParsedPost>, String> {
-    let document = kuchikiki::parse_html().one(html);
+    let document = kuchikiki::parse_html().one(html).document_node;
     let date_regex = compile_timestamp_regex(site)?;
 
     let anchors = document
@@ -103,7 +103,7 @@ fn parse_legacy_anchor_siblings(html: &str, site: &SiteConfig) -> Result<Vec<Par
 /// 投稿・題名・投稿者・日時・本文をCSS selectorで設定ファイルから指定する。
 fn parse_css_posts(html: &str, site: &SiteConfig) -> Result<Vec<ParsedPost>, String> {
     let cfg = &site.post_parser;
-    let document = kuchikiki::parse_html().one(html);
+    let document = kuchikiki::parse_html().one(html).document_node;
     let date_regex = compile_timestamp_regex(site)?;
 
     if cfg.post_selector.trim().is_empty() {

@@ -512,7 +512,7 @@ fn resolve_same_origin_bbs_link(site: &SiteConfig, href: &str) -> Result<Url, St
 }
 
 fn extract_action_view_message(html: &str) -> String {
-    let document = kuchikiki::parse_html().one(html);
+    let document = kuchikiki::parse_html().one(html).document_node;
     for selector in ["h3", "h2", "h1"] {
         if let Ok(mut matches) = document.select(selector) {
             if let Some(node) = matches.next() {
@@ -532,7 +532,7 @@ fn extract_action_view_message(html: &str) -> String {
 /// HTML全体の単純な文字列検索は行わない。明示的なエラー要素と、
 /// CGIの結果メッセージとして使われやすい見出しだけを対象にする。
 fn extract_action_view_error_message(html: &str) -> String {
-    let document = kuchikiki::parse_html().one(html);
+    let document = kuchikiki::parse_html().one(html).document_node;
 
     // class/id/roleで明示的にエラーと示されている要素は、その内容をそのまま採用する。
     for selector in [".error", ".err", "#error", "#err", "[role=\"alert\"]"] {
