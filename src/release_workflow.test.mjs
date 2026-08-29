@@ -133,6 +133,7 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.equal((workflow.match(/gh release upload/g) ?? []).length, 1);
   assert.match(workflow, /publish-release:[\s\S]*?gh release edit/);
   assert.match(workflow, /--draft=false/);
+  assert.match(workflow, /--prerelease/);
 });
 
 for (const platform of ['linux', 'macos']) {
