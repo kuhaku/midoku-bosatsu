@@ -1,7 +1,7 @@
 [package]
 name = "midoku-bosatsu"
-version = "0.1.3"
-description = "Midoku Bosatsu: a cross-platform reader for Ayashii World style bulletin boards."
+version = "0.1.4"
+description = "Midoku Bosatsu: a cross-platform reader for Strange World BBS."
 authors = ["Midoku Bosatsu"]
 edition = "2021"
 
