@@ -52,21 +52,24 @@ jobs:
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix:
         include:
           - name: Windows x64
+            artifact: windows-x64
             platform: windows-latest
             portable: true
           - name: macOS Apple Silicon
+            artifact: macos-aarch64
             platform: macos-latest
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
           - name: macOS Intel
+            artifact: macos-x86_64
             platform: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
           - name: Linux x64
+            artifact: linux-x86_64
             platform: ubuntu-22.04
             args: --bundles appimage,deb,rpm
 
@@ -118,30 +121,26 @@ jobs:
           Copy-Item src-tauri/target/release/midoku-bosatsu.exe $packageRoot
           Copy-Item src-tauri/resources $packageRoot/resources -Recurse
           Compress-Archive -Path "$packageRoot/*" -DestinationPath $archiveName
-          "WINDOWS_RELEASE_ASSET=$archiveName" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Path release-assets | Out-Null
+          Move-Item $archiveName release-assets/$archiveName
 
-      - name: Upload portable Windows ZIP
-        if: matrix.portable
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: gh release upload "$env:GITHUB_REF_NAME" $env:WINDOWS_RELEASE_ASSET --clobber
-
-      - name: Build and upload release assets
+      - name: Build release assets
         if: ${{ !matrix.portable }}
         uses: tauri-apps/tauri-action@v1.0.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: app-v__VERSION__
-          releaseName: 'midoku-bosatsu v__VERSION__'
-          generateReleaseNotes: true
-          releaseDraft: true
-          prerelease: false
-          releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][ext]"
           args: ${{ matrix.args }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            release-assets/**
+            src-tauri/target/**/bundle/**
 
   publish-release:
     name: Publish completed release
@@ -151,8 +150,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Publish draft release after every matrix build succeeds
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: release-assets-*
+          path: release-assets
+
+      - name: Generate unified updater manifest
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        run: node scripts/generate-updater-manifest.mjs release-assets release-assets-to-upload
+
+      - name: Upload release assets and publish draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+        run: |
+          find release-assets-to-upload -type f -print0 | xargs -0 gh release upload "$GITHUB_REF_NAME" --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false

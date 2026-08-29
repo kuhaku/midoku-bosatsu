@@ -86,7 +86,7 @@ for (const [label, versions, refName] of [
   });
 }
 
-test('release workflow accepts app-v tags and configures signing and release publishing', async () => {
+test('release workflow builds each platform in parallel and publishes all assets once', async () => {
   const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
 
   assert.match(workflow, /app-v\*/);
@@ -94,29 +94,32 @@ test('release workflow accepts app-v tags and configures signing and release pub
   assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
   assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
   assert.match(workflow, /GITHUB_TOKEN/);
-  assert.match(workflow, /tauri-apps\/tauri-action/);
+  assert.match(workflow, /tauri-apps\/tauri-action@v1\.0\.0/);
   assert.match(workflow, /GITHUB_REF_NAME/);
   assert.match(workflow, /package\.json/);
   assert.match(workflow, /src-tauri\/tauri\.conf\.json/);
   assert.match(workflow, /src-tauri\/Cargo\.toml/);
   assert.match(workflow, /verify-release-version\.mjs/);
-  assert.match(workflow, /max-parallel:\s*1/);
-  assert.match(workflow, /name: Windows x64\s+platform: windows-latest\s+portable: true/);
+  assert.doesNotMatch(workflow, /max-parallel:/);
+  assert.match(workflow, /name: Windows x64\s+artifact: windows-x64\s+platform: windows-latest\s+portable: true/);
   assert.match(workflow, /name: Build portable Windows binary[\s\S]*?npm run tauri -- build --no-bundle/);
   assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
   assert.match(workflow, /Copy-Item src-tauri\/resources \$packageRoot\/resources -Recurse/);
   assert.match(workflow, /Compress-Archive/);
-  assert.match(workflow, /gh release upload/);
+  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /name:\s*release-assets-\$\{\{ matrix\.artifact \}\}/);
   assert.doesNotMatch(workflow, /args: --bundles nsis/);
-  assert.match(workflow, /tagName:\s*app-v__VERSION__/);
-  assert.match(workflow, /releaseName:\s*'midoku-bosatsu v__VERSION__'/);
-  assert.match(workflow, /releaseDraft:\s*true/);
+  assert.doesNotMatch(workflow, /tagName:\s*app-v__VERSION__/);
   assert.match(workflow, /publish-release:/);
   assert.match(workflow, /needs:\s*build-and-release/);
   assert.match(
     workflow,
-    /publish-release:[\s\S]*?steps:\s*- name: Check out repository\s+uses: actions\/checkout@v4/,
+    /publish-release:[\s\S]*?steps:\s*- name: Check out repository\s+uses: actions\/checkout@v7/,
   );
-  assert.match(workflow, /gh release edit/);
+  assert.match(workflow, /publish-release:[\s\S]*?actions\/download-artifact@v5/);
+  assert.match(workflow, /publish-release:[\s\S]*?node scripts\/generate-updater-manifest\.mjs/);
+  assert.match(workflow, /publish-release:[\s\S]*?gh release upload/);
+  assert.equal((workflow.match(/gh release upload/g) ?? []).length, 1);
+  assert.match(workflow, /publish-release:[\s\S]*?gh release edit/);
   assert.match(workflow, /--draft=false/);
 });
