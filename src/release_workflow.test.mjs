@@ -117,7 +117,7 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
   assert.match(workflow, /Copy-Item src-tauri\/resources \$packageRoot\/resources -Recurse/);
   assert.match(workflow, /Compress-Archive/);
-  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /actions\/upload-artifact@v5/);
   assert.match(workflow, /name:\s*release-assets-\$\{\{ matrix\.artifact \}\}/);
   assert.doesNotMatch(workflow, /args: --bundles nsis/);
   assert.doesNotMatch(workflow, /--bundles msi/);
