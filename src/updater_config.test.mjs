@@ -26,4 +26,5 @@ test('updater config declares the release endpoint, public key, and permissions'
   assert.equal(publicKeyLines.length, 2);
   assert.ok(capabilities.permissions.includes('updater:default'));
   assert.ok(capabilities.permissions.includes('process:allow-restart'));
+  assert.ok(capabilities.permissions.includes('dialog:allow-message'));
 });

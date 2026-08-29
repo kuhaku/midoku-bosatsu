@@ -13,7 +13,7 @@ export type AppUpdate = {
 type AppUpdateDependencies = {
   check: () => Promise<AppUpdate | null>;
   relaunch: () => Promise<void>;
-  confirm: (message: string) => boolean;
+  confirm: (message: string) => Promise<boolean>;
   alert: (message: string) => void;
   logError: (error: unknown) => void;
 };
@@ -33,7 +33,15 @@ const defaultDependencies: AppUpdateDependencies = {
     const { relaunch } = await import('@tauri-apps/plugin-process');
     return relaunch();
   },
-  confirm: (message) => window.confirm(message),
+  confirm: async (message) => {
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    return ask(message, {
+      title: '未読菩薩の更新',
+      kind: 'info',
+      okLabel: '更新する',
+      cancelLabel: 'キャンセル',
+    });
+  },
   alert: (message) => window.alert(message),
   logError: (error) => console.error(error),
 };
@@ -65,7 +73,7 @@ export function createAppUpdateChecker(
         const update = await dependencies.check();
         if (!update) return;
 
-        const approved = dependencies.confirm(
+        const approved = await dependencies.confirm(
           `新しいバージョン ${update.version} を利用できます。\n\n${formatUpdateNotes(update.body)}\n\n今すぐ更新して再起動しますか？`,
         );
         if (!approved) return;

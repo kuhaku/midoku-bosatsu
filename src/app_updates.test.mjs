@@ -134,7 +134,7 @@ test('更新がある場合はバージョンとリリースノートを確認�
   assert.match(messages[0], /重要な修正です。/);
 });
 
-test('更新をキャンセルするとダウンロード、インストール、再起動を行わない', async () => {
+test('非同期確認で更新をキャンセルするとダウンロード、インストール、再起動を行わない', async () => {
   const events = [];
   const checker = createAppUpdateChecker({
     check: async () => ({
@@ -144,7 +144,7 @@ test('更新をキャンセルするとダウンロード、インストール�
       install: async () => events.push('install'),
     }),
     relaunch: async () => events.push('relaunch'),
-    confirm: () => {
+    confirm: async () => {
       events.push('confirm');
       return false;
     },
