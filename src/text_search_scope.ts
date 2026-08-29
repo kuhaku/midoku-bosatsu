@@ -1,5 +1,5 @@
 type SearchRoot = {
-  hidden: boolean;
+  hidden: boolean | string;
 };
 
 export function textSearchRoot<T extends SearchRoot>(
