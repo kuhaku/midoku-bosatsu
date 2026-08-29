@@ -30,9 +30,22 @@ jobs:
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: node scripts/verify-release-version.mjs
 
+  prepare-release:
+    name: Create draft release
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="${GITHUB_REF_NAME#app-v}"
+          gh release create "$GITHUB_REF_NAME" --draft --generate-notes --title "midoku-bosatsu v$version"
+
   build-and-release:
     name: ${{ matrix.name }}
-    needs: verify-version
+    needs: prepare-release
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -41,7 +54,7 @@ jobs:
         include:
           - name: Windows x64
             platform: windows-latest
-            args: --bundles nsis
+            portable: true
           - name: macOS Apple Silicon
             platform: macos-latest
             target: aarch64-apple-darwin
@@ -85,7 +98,34 @@ jobs:
         if: startsWith(matrix.platform, 'macos-')
         run: echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
 
+      - name: Build portable Windows binary
+        if: matrix.portable
+        run: npm run tauri -- build --no-bundle
+
+      - name: Create portable Windows ZIP
+        if: matrix.portable
+        shell: pwsh
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^app-v', ''
+          $archiveName = "midoku-bosatsu_${version}_windows-x64.zip"
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'midoku-bosatsu'
+          New-Item -ItemType Directory -Path $packageRoot | Out-Null
+          Copy-Item src-tauri/target/release/midoku-bosatsu.exe $packageRoot
+          Copy-Item src-tauri/resources $packageRoot/resources -Recurse
+          Compress-Archive -Path "$packageRoot/*" -DestinationPath $archiveName
+          "WINDOWS_RELEASE_ASSET=$archiveName" >> $env:GITHUB_ENV
+
+      - name: Upload portable Windows ZIP
+        if: matrix.portable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: gh release upload "$env:GITHUB_REF_NAME" $env:WINDOWS_RELEASE_ASSET --clobber
+
       - name: Build and upload release assets
+        if: ${{ !matrix.portable }}
         uses: tauri-apps/tauri-action@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -93,7 +133,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: app-v__VERSION__
-          releaseName: '未読菩薩 v__VERSION__'
+          releaseName: 'midoku-bosatsu v__VERSION__'
           generateReleaseNotes: true
           releaseDraft: true
           prerelease: false

@@ -101,10 +101,15 @@ test('release workflow accepts app-v tags and configures signing and release pub
   assert.match(workflow, /src-tauri\/Cargo\.toml/);
   assert.match(workflow, /verify-release-version\.mjs/);
   assert.match(workflow, /max-parallel:\s*1/);
-  assert.match(workflow, /name: Windows x64\s+platform: windows-latest\s+args: --bundles nsis/);
-  assert.doesNotMatch(workflow, /args: --bundles nsis,msi/);
+  assert.match(workflow, /name: Windows x64\s+platform: windows-latest\s+portable: true/);
+  assert.match(workflow, /name: Build portable Windows binary[\s\S]*?npm run tauri -- build --no-bundle/);
+  assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
+  assert.match(workflow, /Copy-Item src-tauri\/resources \$packageRoot\/resources -Recurse/);
+  assert.match(workflow, /Compress-Archive/);
+  assert.match(workflow, /gh release upload/);
+  assert.doesNotMatch(workflow, /args: --bundles nsis/);
   assert.match(workflow, /tagName:\s*app-v__VERSION__/);
-  assert.match(workflow, /releaseName:\s*'未読菩薩 v__VERSION__'/);
+  assert.match(workflow, /releaseName:\s*'midoku-bosatsu v__VERSION__'/);
   assert.match(workflow, /releaseDraft:\s*true/);
   assert.match(workflow, /publish-release:/);
   assert.match(workflow, /needs:\s*build-and-release/);
