@@ -117,7 +117,7 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
   assert.match(workflow, /Copy-Item src-tauri\/resources \$packageRoot\/resources -Recurse/);
   assert.match(workflow, /Compress-Archive/);
-  assert.match(workflow, /actions\/upload-artifact@v5/);
+  assert.match(workflow, /actions\/upload-artifact@v7/);
   assert.match(workflow, /name:\s*release-assets-\$\{\{ matrix\.artifact \}\}/);
   assert.doesNotMatch(workflow, /args: --bundles nsis/);
   assert.doesNotMatch(workflow, /--bundles msi/);
@@ -128,7 +128,7 @@ test('release workflow builds each platform in parallel and publishes all assets
     workflow,
     /publish-release:[\s\S]*?steps:\s*- name: Check out repository\s+uses: actions\/checkout@v7/,
   );
-  assert.match(workflow, /publish-release:[\s\S]*?actions\/download-artifact@v5/);
+  assert.match(workflow, /publish-release:[\s\S]*?actions\/download-artifact@v8/);
   assert.match(workflow, /publish-release:[\s\S]*?node scripts\/generate-updater-manifest\.mjs/);
   assert.match(workflow, /publish-release:[\s\S]*?gh release upload/);
   assert.equal((workflow.match(/gh release upload/g) ?? []).length, 1);
