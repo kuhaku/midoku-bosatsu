@@ -29,17 +29,24 @@ function findSingle(files, matches, label) {
   return matchedFiles[0];
 }
 
+function isReleaseAsset(file) {
+  const name = basename(file);
+  const unsignedName = name.endsWith('.sig') ? name.slice(0, -'.sig'.length) : name;
+  return /\.(zip|dmg|app\.tar\.gz|appimage|deb|rpm)$/i.test(unsignedName);
+}
+
 const files = await listFiles(assetsDirectory);
+const uploadFiles = files.filter(isReleaseAsset);
 const releaseUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}`;
-const filesByName = Map.groupBy(files, (file) => basename(file));
-const uploadedNames = new Map(files.map((file) => {
+const filesByName = Map.groupBy(uploadFiles, (file) => basename(file));
+const uploadedNames = new Map(uploadFiles.map((file) => {
   const [artifactName] = relative(assetsDirectory, file).split(/[\\/]/);
   const name = basename(file);
   return [file, filesByName.get(name).length > 1 ? `${artifactName}-${name}` : name];
 }));
 
 await mkdir(outputDirectory, { recursive: true });
-await Promise.all(files.map((file) => copyFile(file, join(outputDirectory, uploadedNames.get(file)))));
+await Promise.all(uploadFiles.map((file) => copyFile(file, join(outputDirectory, uploadedNames.get(file)))));
 
 const updaterArtifacts = [
   ['darwin-aarch64', /release-assets-macos-aarch64[\\/].*\.app\.tar\.gz$/, 'macOS Apple Silicon updater'],

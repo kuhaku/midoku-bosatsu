@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -21,6 +21,7 @@ test('updater manifest merges signatures for every updater platform', async () =
     'release-assets-macos-aarch64/midoku-bosatsu.app.tar.gz.sig',
     'release-assets-macos-x86_64/midoku-bosatsu.app.tar.gz',
     'release-assets-macos-x86_64/midoku-bosatsu.app.tar.gz.sig',
+    'release-assets-macos-aarch64/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/empty',
   ];
 
   try {
@@ -52,6 +53,7 @@ test('updater manifest merges signatures for every updater platform', async () =
     assert.match(manifest.platforms['darwin-aarch64'].url, /release-assets-macos-aarch64-midoku-bosatsu\.app\.tar\.gz$/);
     assert.match(manifest.platforms['linux-x86_64'].url, /midoku-bosatsu_0\.2\.0_amd64\.AppImage$/);
     assert.match(await readFile(join(outputDirectory, 'release-assets-macos-x86_64-midoku-bosatsu.app.tar.gz'), 'utf8'), /bundle/);
+    assert.ok(!(await readdir(outputDirectory)).includes('empty'));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
