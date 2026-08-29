@@ -111,12 +111,15 @@ test('release workflow builds each platform in parallel and publishes all assets
     /name: macOS Intel[\s\S]*?args: --target x86_64-apple-darwin --bundles app,dmg/,
   );
   assert.match(workflow, /name: Build portable Windows binary[\s\S]*?npm run tauri -- build --no-bundle/);
+  assert.match(workflow, /name: Build Windows NSIS installer[\s\S]*?npm run tauri -- build --bundles nsis/);
+  assert.match(workflow, /Build Windows NSIS installer[\s\S]*?TAURI_SIGNING_PRIVATE_KEY:/);
   assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
   assert.match(workflow, /Copy-Item src-tauri\/resources \$packageRoot\/resources -Recurse/);
   assert.match(workflow, /Compress-Archive/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.match(workflow, /name:\s*release-assets-\$\{\{ matrix\.artifact \}\}/);
   assert.doesNotMatch(workflow, /args: --bundles nsis/);
+  assert.doesNotMatch(workflow, /--bundles msi/);
   assert.doesNotMatch(workflow, /tagName:\s*app-v__VERSION__/);
   assert.match(workflow, /publish-release:/);
   assert.match(workflow, /needs:\s*build-and-release/);

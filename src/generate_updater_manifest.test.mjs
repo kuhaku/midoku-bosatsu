@@ -17,6 +17,8 @@ test('updater manifest merges signatures for every updater platform', async () =
   const files = [
     'release-assets-linux-x86_64/midoku-bosatsu_0.2.0_amd64.AppImage',
     'release-assets-linux-x86_64/midoku-bosatsu_0.2.0_amd64.AppImage.sig',
+    'release-assets-windows-x64/src-tauri/target/release/bundle/nsis/midoku-bosatsu_0.2.0_x64-setup.exe',
+    'release-assets-windows-x64/src-tauri/target/release/bundle/nsis/midoku-bosatsu_0.2.0_x64-setup.exe.sig',
     'release-assets-macos-aarch64/midoku-bosatsu.app.tar.gz',
     'release-assets-macos-aarch64/midoku-bosatsu.app.tar.gz.sig',
     'release-assets-macos-x86_64/midoku-bosatsu.app.tar.gz',
@@ -48,10 +50,16 @@ test('updater manifest merges signatures for every updater platform', async () =
       'darwin-aarch64',
       'darwin-x86_64',
       'linux-x86_64',
+      'windows-x86_64',
     ]);
     assert.equal(manifest.platforms['darwin-aarch64'].signature, 'signature for release-assets-macos-aarch64/midoku-bosatsu.app.tar.gz.sig');
     assert.match(manifest.platforms['darwin-aarch64'].url, /release-assets-macos-aarch64-midoku-bosatsu\.app\.tar\.gz$/);
     assert.match(manifest.platforms['linux-x86_64'].url, /midoku-bosatsu_0\.2\.0_amd64\.AppImage$/);
+    assert.equal(
+      manifest.platforms['windows-x86_64'].signature,
+      'signature for release-assets-windows-x64/src-tauri/target/release/bundle/nsis/midoku-bosatsu_0.2.0_x64-setup.exe.sig',
+    );
+    assert.match(manifest.platforms['windows-x86_64'].url, /midoku-bosatsu_0\.2\.0_x64-setup\.exe$/);
     assert.match(await readFile(join(outputDirectory, 'release-assets-macos-x86_64-midoku-bosatsu.app.tar.gz'), 'utf8'), /bundle/);
     assert.ok(!(await readdir(outputDirectory)).includes('empty'));
   } finally {

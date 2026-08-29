@@ -124,6 +124,13 @@ jobs:
           New-Item -ItemType Directory -Path release-assets | Out-Null
           Move-Item $archiveName release-assets/$archiveName
 
+      - name: Build Windows NSIS installer
+        if: matrix.portable
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri -- build --bundles nsis
+
       - name: Build release assets
         if: ${{ !matrix.portable }}
         uses: tauri-apps/tauri-action@v1.0.0

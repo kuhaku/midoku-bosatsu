@@ -32,7 +32,7 @@ function findSingle(files, matches, label) {
 function isReleaseAsset(file) {
   const name = basename(file);
   const unsignedName = name.endsWith('.sig') ? name.slice(0, -'.sig'.length) : name;
-  return /\.(zip|dmg|app\.tar\.gz|appimage|deb|rpm)$/i.test(unsignedName);
+  return /\.(zip|dmg|app\.tar\.gz|appimage|deb|rpm|exe)$/i.test(unsignedName);
 }
 
 const files = await listFiles(assetsDirectory);
@@ -52,6 +52,7 @@ const updaterArtifacts = [
   ['darwin-aarch64', /release-assets-macos-aarch64[\\/].*\.app\.tar\.gz$/, 'macOS Apple Silicon updater'],
   ['darwin-x86_64', /release-assets-macos-x86_64[\\/].*\.app\.tar\.gz$/, 'macOS Intel updater'],
   ['linux-x86_64', /release-assets-linux-x86_64[\\/].*\.AppImage$/, 'Linux updater'],
+  ['windows-x86_64', /release-assets-windows-x64[\\/].*bundle[\\/]nsis[\\/].*-setup\.exe$/i, 'Windows NSIS updater'],
 ];
 
 const platforms = Object.fromEntries(await Promise.all(updaterArtifacts.map(async ([platform, bundlePattern, label]) => {
