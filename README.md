@@ -43,7 +43,7 @@
 以下を実行
 
 ```sh
-xattr -cr /Applications/Agentoast.app
+xattr -cr /Applications/未読菩薩.app
 ```
 
 #### GUIでやる場合
