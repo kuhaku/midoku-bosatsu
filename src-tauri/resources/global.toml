@@ -24,6 +24,12 @@ max_image_height_px = 40
 image_hover_window_percent = 90
 keyboard_shortcuts_enabled = true
 
+# trueなら未読投稿を古い順から新しい順へ自動表示する。
+# 初期値はOFF。
+viewing_mode_enabled = false
+# 観賞用自動モードの投稿表示間隔（秒）。初期値は5秒。
+viewing_mode_interval_seconds = 5
+
 # 「参考：...」リンクを親子関係として使い、同じスレッドの投稿をツリー表示する。
 # 初期値はOFF。
 tree_view_enabled = false

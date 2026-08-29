@@ -74,6 +74,8 @@ type GlobalConfig = {
   max_image_height_px: number;
   image_hover_window_percent: number;
   keyboard_shortcuts_enabled: boolean;
+  viewing_mode_enabled: boolean;
+  viewing_mode_interval_seconds: number;
   tree_view_enabled: boolean;
   post_saving_enabled: boolean;
   hide_tree_link: boolean;
@@ -337,6 +339,8 @@ type ResetHiddenThread = { site_id: string; thread_id: string; created_at: strin
 const READ_CURSOR_STORAGE_KEY = 'midoku-bosatsu.read-cursor.v1';
 const POST_LOG_STORAGE_KEY = 'midoku-bosatsu.post-log.v1';
 const SAVED_POSTS_STORAGE_KEY = 'midoku-bosatsu.saved-posts.v1';
+const DEFAULT_VIEWING_MODE_INTERVAL_SECONDS = 5;
+const MAX_VIEWING_MODE_INTERVAL_SECONDS = 86_400;
 const NOTIFICATION_ICON_URL = '/icons/notification-audio.png';
 const NOTIFICATION_ICON_ACTIVE_URL = '/icons/notification-audio-active.png';
 const SAVE_ICON_OUTLINE_URL = '/icons/save-heart-outline.png';
@@ -712,6 +716,27 @@ app.innerHTML = `
               </label>
             </div>
             <div class="highlight-preview" aria-label="ハイライト表示プレビュー">通常の文字 <span class="post-highlight">ハイライト文字</span> 通常の文字</div>
+          </details>
+
+          <details class="settings-section general-viewing-mode-section">
+            <summary class="settings-section-heading">
+              <div>
+                <h3>観賞用自動モード</h3>
+                <p class="settings-section-description">未読投稿を自動で順番に表示します。</p>
+              </div>
+            </summary>
+            <div class="settings-grid">
+              <label class="settings-check settings-check-card settings-span-2">
+                <input id="general-viewing-mode-enabled" type="checkbox"> 観賞用自動モードをONにする
+                <small>未読投稿を古い順から新しい順へ表示します。投稿画面や設定画面を開いている間は一時停止します。</small>
+              </label>
+              <div id="general-viewing-mode-interval-settings" class="settings-grid settings-span-2">
+                <label>表示間隔（秒）
+                  <input id="general-viewing-mode-interval" type="number" min="1" max="86400" step="1">
+                  <small>未読投稿を次へ表示するまでの間隔です。初期値は5秒です。</small>
+                </label>
+              </div>
+            </div>
           </details>
 
         </div>
@@ -1113,6 +1138,9 @@ const generalShowImageDetailInput = mustElement<HTMLInputElement>('#general-show
 const generalImageMaxHeightInput = mustElement<HTMLInputElement>('#general-image-max-height');
 const generalImageHoverWindowPercentInput = mustElement<HTMLInputElement>('#general-image-hover-window-percent');
 const generalKeyboardShortcutsEnabledInput = mustElement<HTMLInputElement>('#general-keyboard-shortcuts-enabled');
+const generalViewingModeEnabledInput = mustElement<HTMLInputElement>('#general-viewing-mode-enabled');
+const generalViewingModeIntervalSettings = mustElement<HTMLDivElement>('#general-viewing-mode-interval-settings');
+const generalViewingModeIntervalInput = mustElement<HTMLInputElement>('#general-viewing-mode-interval');
 const generalReplyNotificationEnabledInput = mustElement<HTMLInputElement>('#general-reply-notification-enabled');
 const generalReplyNotificationOptions = mustElement<HTMLDivElement>('#general-reply-notification-options');
 const generalReplyNotificationIncludeDescendantsInput = mustElement<HTMLInputElement>('#general-reply-notification-include-descendants');
@@ -1243,6 +1271,7 @@ let config: ReaderConfig | null = null;
 let enabledSites: SiteConfig[] = [];
 let reloadTimer: number | null = null;
 let reloadAvailabilityTimer: number | null = null;
+let viewingModeTimer: number | null = null;
 let requestInFlight = false;
 let bbsActionSubmitInFlight = false;
 let bbsActionViewPosts: ParsedPost[] = [];
@@ -3562,6 +3591,21 @@ function moveCurrentPost(delta: -1 | 1): void {
   setCurrentPostElement(posts[nextIndex], true);
 }
 
+function moveToNextUnreadPost(): void {
+  if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden || !bbsActionView.hidden) return;
+
+  const unreadPosts = sortedPosts()
+    .filter((post) => !isNgPost(post) && isPostUnread(post))
+    .sort((left, right) => compareNewestFirst(right, left));
+  if (unreadPosts.length === 0) return;
+
+  const currentIndex = unreadPosts.findIndex((post) => postKey(post) === currentPostKey);
+  const nextPost = unreadPosts[Math.min(currentIndex + 1, unreadPosts.length - 1)];
+  const selector = `.post[data-post-key="${CSS.escape(postKey(nextPost))}"]`;
+  const article = postsElement.querySelector<HTMLElement>(selector);
+  if (article) setCurrentPostElement(article, true);
+}
+
 function openCurrentPostFollow(): void {
   const post = getCurrentShortcutPost();
   if (!post?.follow_url) return;
@@ -4073,6 +4117,7 @@ function applyDisplayConfig(globalConfig: GlobalConfig): void {
   const enabled = globalConfig.post_saving_enabled ?? true;
   savedPostsButton.hidden = !enabled;
   if (!enabled && !savedPostsView.hidden) closeSavedPostsView();
+  startViewingModeTimer();
 }
 
 function applyReaderStyle(style: ReaderStyleConfig): void {
@@ -4344,6 +4389,9 @@ function renderGeneralSettingsForm(): void {
   generalImageMaxHeightInput.value = String(generalDraftGlobal.max_image_height_px);
   generalImageHoverWindowPercentInput.value = String(generalDraftGlobal.image_hover_window_percent);
   generalKeyboardShortcutsEnabledInput.checked = generalDraftGlobal.keyboard_shortcuts_enabled ?? true;
+  generalViewingModeEnabledInput.checked = generalDraftGlobal.viewing_mode_enabled ?? false;
+  generalViewingModeIntervalInput.value = String(generalDraftGlobal.viewing_mode_interval_seconds ?? DEFAULT_VIEWING_MODE_INTERVAL_SECONDS);
+  updateViewingModeIntervalVisibility();
   generalReplyNotificationEnabledInput.checked = generalDraftGlobal.reply_notification_enabled ?? false;
   updateReplyNotificationOptionsVisibility();
   generalReplyNotificationIncludeDescendantsInput.checked = generalDraftGlobal.reply_notification_include_descendants ?? false;
@@ -4375,6 +4423,10 @@ function updateImageSizeSettingsVisibility(): void {
 
 function updateReplyNotificationOptionsVisibility(): void {
   generalReplyNotificationOptions.hidden = !generalReplyNotificationEnabledInput.checked;
+}
+
+function updateViewingModeIntervalVisibility(): void {
+  generalViewingModeIntervalSettings.hidden = !generalViewingModeEnabledInput.checked;
 }
 
 function commitGeneralSettingsForm(): void {
@@ -4410,6 +4462,10 @@ function commitGeneralSettingsForm(): void {
   const imageHoverWindowPercent = Number.parseInt(generalImageHoverWindowPercentInput.value, 10);
   if (Number.isFinite(imageHoverWindowPercent)) generalDraftGlobal.image_hover_window_percent = imageHoverWindowPercent;
   generalDraftGlobal.keyboard_shortcuts_enabled = generalKeyboardShortcutsEnabledInput.checked;
+  generalDraftGlobal.viewing_mode_enabled = generalViewingModeEnabledInput.checked;
+  const viewingModeInterval = Number.parseInt(generalViewingModeIntervalInput.value, 10);
+  if (Number.isFinite(viewingModeInterval)) generalDraftGlobal.viewing_mode_interval_seconds = viewingModeInterval;
+  updateViewingModeIntervalVisibility();
   generalDraftGlobal.reply_notification_enabled = generalReplyNotificationEnabledInput.checked;
   updateReplyNotificationOptionsVisibility();
   generalDraftGlobal.reply_notification_include_descendants = generalReplyNotificationIncludeDescendantsInput.checked;
@@ -4492,6 +4548,13 @@ function updatePollIntervalWarning(): void {
 function safePollIntervalSeconds(rawSeconds: number): number {
   if (!Number.isFinite(rawSeconds) || rawSeconds <= MIN_UNREAD_RELOAD_INTERVAL_SECONDS) {
     return MIN_UNREAD_RELOAD_INTERVAL_SECONDS;
+  }
+  return Math.floor(rawSeconds);
+}
+
+function safeViewingModeIntervalSeconds(rawSeconds: number): number {
+  if (!Number.isFinite(rawSeconds) || rawSeconds < 1 || rawSeconds > MAX_VIEWING_MODE_INTERVAL_SECONDS) {
+    return DEFAULT_VIEWING_MODE_INTERVAL_SECONDS;
   }
   return Math.floor(rawSeconds);
 }
@@ -4742,6 +4805,17 @@ function startReloadTimer(): void {
   reloadTimer = window.setInterval(() => {
     void runFetchCycle(false);
   }, intervalSeconds * 1000);
+}
+
+function startViewingModeTimer(): void {
+  if (viewingModeTimer !== null) {
+    window.clearInterval(viewingModeTimer);
+    viewingModeTimer = null;
+  }
+  if (!config || !config.global.viewing_mode_enabled) return;
+
+  const intervalSeconds = safeViewingModeIntervalSeconds(config.global.viewing_mode_interval_seconds);
+  viewingModeTimer = window.setInterval(moveToNextUnreadPost, intervalSeconds * 1000);
 }
 
 function jumpToUnreadBoundary(): void {

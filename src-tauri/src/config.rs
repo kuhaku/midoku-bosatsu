@@ -32,6 +32,10 @@ pub struct GlobalConfig {
     pub image_hover_window_percent: u8,
     #[serde(default = "default_true")]
     pub keyboard_shortcuts_enabled: bool,
+    #[serde(default)]
+    pub viewing_mode_enabled: bool,
+    #[serde(default = "default_viewing_mode_interval_seconds")]
+    pub viewing_mode_interval_seconds: u64,
     /// 「参考」リンクとスレッドIDから投稿の親子関係を組み立てて表示する。
     #[serde(default)]
     pub tree_view_enabled: bool,
@@ -243,6 +247,9 @@ fn default_show_post_images() -> bool {
 }
 fn default_show_image_detail_link() -> bool {
     true
+}
+fn default_viewing_mode_interval_seconds() -> u64 {
+    5
 }
 fn default_max_image_height_px() -> u16 {
     40
@@ -710,6 +717,9 @@ pub(crate) fn validate_global_config(global: &GlobalConfig) -> Result<(), String
     }
     if !(1..=100).contains(&global.image_hover_window_percent) {
         return Err("image_hover_window_percent は1〜100で指定してください".to_string());
+    }
+    if !(1..=86_400).contains(&global.viewing_mode_interval_seconds) {
+        return Err("観賞用自動モードの表示間隔は1〜86400秒で指定してください".to_string());
     }
     match global.post_order.as_str() {
         "newest_first" | "oldest_first" => {}

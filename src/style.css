@@ -1251,6 +1251,7 @@ button:disabled { cursor: default; opacity: .45; }
 #general-settings-form > .general-settings-content > .general-reply-notification-section { order: 6; }
 #general-settings-form > .general-settings-content > .general-tree-section { order: 7; }
 #general-settings-form > .general-settings-content > .reset-data-section { order: 8; }
+#general-settings-form > .general-settings-content > .general-viewing-mode-section { order: 9; }
 
 .font-preview {
   margin-top: 16px;
