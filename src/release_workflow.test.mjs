@@ -112,6 +112,7 @@ test('release workflow builds each platform in parallel and publishes all assets
   );
   assert.match(workflow, /name: Build portable Windows binary[\s\S]*?npm run tauri -- build --no-bundle/);
   assert.match(workflow, /name: Build Windows NSIS installer[\s\S]*?npm run tauri -- build --bundles nsis/);
+  assert.match(workflow, /Build Windows NSIS installer[\s\S]*?--config src-tauri\/tauri\.windows\.conf\.json/);
   assert.match(workflow, /Build Windows NSIS installer[\s\S]*?TAURI_SIGNING_PRIVATE_KEY:/);
   assert.match(workflow, /Copy-Item src-tauri\/target\/release\/midoku-bosatsu\.exe/);
   assert.match(workflow, /Copy-Item src-tauri\/resources \$packageRoot\/resources -Recurse/);
@@ -136,7 +137,7 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.match(workflow, /--prerelease/);
 });
 
-for (const platform of ['linux', 'macos']) {
+for (const platform of ['linux', 'macos', 'windows']) {
   test(`${platform} release bundles use the ASCII product name`, async () => {
     const config = JSON.parse(await readFile(
       new URL(`../src-tauri/tauri.${platform}.conf.json`, import.meta.url),
