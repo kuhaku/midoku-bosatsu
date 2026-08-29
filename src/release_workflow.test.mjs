@@ -108,6 +108,10 @@ test('release workflow accepts app-v tags and configures signing and release pub
   assert.match(workflow, /releaseDraft:\s*true/);
   assert.match(workflow, /publish-release:/);
   assert.match(workflow, /needs:\s*build-and-release/);
+  assert.match(
+    workflow,
+    /publish-release:[\s\S]*?steps:\s*- name: Check out repository\s+uses: actions\/checkout@v4/,
+  );
   assert.match(workflow, /gh release edit/);
   assert.match(workflow, /--draft=false/);
 });

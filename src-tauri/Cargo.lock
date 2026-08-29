@@ -2314,7 +2314,7 @@ dependencies = [
 
 [[package]]
 name = "midoku-bosatsu"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "chrono",
  "encoding_rs",

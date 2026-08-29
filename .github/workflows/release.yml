@@ -105,6 +105,9 @@ jobs:
     needs: build-and-release
     runs-on: ubuntu-latest
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Publish draft release after every matrix build succeeds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
