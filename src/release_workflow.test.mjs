@@ -123,3 +123,14 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.match(workflow, /publish-release:[\s\S]*?gh release edit/);
   assert.match(workflow, /--draft=false/);
 });
+
+for (const platform of ['linux', 'macos']) {
+  test(`${platform} release bundles use the ASCII product name`, async () => {
+    const config = JSON.parse(await readFile(
+      new URL(`../src-tauri/tauri.${platform}.conf.json`, import.meta.url),
+      'utf8',
+    ));
+
+    assert.equal(config.productName, 'midoku-bosatsu');
+  });
+}
