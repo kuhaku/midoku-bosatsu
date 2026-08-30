@@ -115,6 +115,14 @@ fn get_reader_style(app: AppHandle) -> Result<ReaderStyleConfig, String> {
 }
 
 #[tauri::command]
+async fn fetch_fxtwitter_status(
+    state: State<'_, ReaderState>,
+    status_id: String,
+) -> Result<serde_json::Value, String> {
+    state.fetch_fxtwitter_status(&status_id).await
+}
+
+#[tauri::command]
 fn save_general_settings(
     app: AppHandle,
     service: State<'_, ReplyNotificationService>,
@@ -455,6 +463,7 @@ pub fn run() {
             reset_config_to_bundled,
             save_bbs_config,
             get_reader_style,
+            fetch_fxtwitter_status,
             save_general_settings,
             get_reply_notification_ui_state,
             get_reply_notification_tracked_roots,

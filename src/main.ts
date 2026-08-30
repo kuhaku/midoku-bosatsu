@@ -75,12 +75,20 @@ import {
   filterHiddenThreadPosts,
   threadVisibilityKey,
 } from './thread_visibility.ts';
+import {
+  normalizeFxTwitterPreview,
+  parseFxTwitterPreviewTextLinks,
+  parseFxTwitterStatusUrl,
+  truncateFxTwitterPreviewText,
+  type FxTwitterPreview,
+} from './fxtwitter_preview.ts';
 
 type GlobalConfig = {
   poll_interval_seconds: number;
   max_posts: number;
   post_order: 'newest_first' | 'oldest_first' | string;
   show_post_images: boolean;
+  show_fxtwitter_previews: boolean;
   show_image_detail_link: boolean;
   max_image_height_px: number;
   image_hover_window_percent: number;
@@ -617,6 +625,10 @@ app.innerHTML = `
               <label class="settings-check settings-check-card">
                 <input id="general-show-images" type="checkbox"> 投稿内画像を表示する
                 <small>OFFの場合は画像を読み込まず「画像を開く」リンクだけ表示します。</small>
+              </label>
+              <label class="settings-check settings-check-card">
+                <input id="general-show-fxtwitter-previews" type="checkbox"> Twitter (X) のリンクをプレビュー表示する
+                <small>ONにするとFxTwitterを使ってプレビュー表示します。</small>
               </label>
               <label class="settings-check settings-check-card">
                 <input id="general-show-image-detail" type="checkbox"> 詳希(;ﾟДﾟ)
@@ -1223,6 +1235,7 @@ const generalTreeViewEnabledInput = mustElement<HTMLInputElement>('#general-tree
 const generalHideTreeLinkInput = mustElement<HTMLInputElement>('#general-hide-tree-link');
 const generalHideThreadHideLinkInput = mustElement<HTMLInputElement>('#general-hide-thread-hide-link');
 const generalShowImagesInput = mustElement<HTMLInputElement>('#general-show-images');
+const generalShowFxTwitterPreviewsInput = mustElement<HTMLInputElement>('#general-show-fxtwitter-previews');
 const generalImageSizeSettings = mustElement<HTMLDivElement>('#general-image-size-settings');
 const generalExpandNumericCharacterReferencesInput = mustElement<HTMLInputElement>('#general-expand-numeric-character-references');
 const generalShowImageDetailInput = mustElement<HTMLInputElement>('#general-show-image-detail');
@@ -2069,6 +2082,127 @@ function safeHttpUrl(rawUrl: string, baseUrl: string | undefined): string | null
   }
 }
 
+const fxTwitterPreviewRequests = new Map<string, Promise<FxTwitterPreview | null>>();
+
+function fetchFxTwitterPreview(statusId: string): Promise<FxTwitterPreview | null> {
+  const cached = fxTwitterPreviewRequests.get(statusId);
+  if (cached) return cached;
+
+  const request = invoke<unknown>('fetch_fxtwitter_status', { statusId })
+    .then(normalizeFxTwitterPreview)
+    .catch(() => null);
+  fxTwitterPreviewRequests.set(statusId, request);
+  return request;
+}
+
+function appendFxTwitterPreviewTextLinks(value: string, target: HTMLElement): void {
+  for (const part of parseFxTwitterPreviewTextLinks(value)) {
+    if (part.url) {
+      target.append(createExternalLink(part.url, part.text));
+    } else {
+      target.append(document.createTextNode(part.text));
+    }
+  }
+}
+
+function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
+  const card = document.createElement('section');
+  card.className = 'fxtwitter-preview post-copy-exclusion';
+
+  const header = document.createElement('div');
+  header.className = 'fxtwitter-preview-header';
+  const authorLabel = preview.authorName || 'Xの投稿';
+  if (preview.authorHandle) {
+    header.append(createExternalLink(
+      `https://x.com/${encodeURIComponent(preview.authorHandle)}`,
+      authorLabel,
+    ));
+  } else {
+    const author = document.createElement('strong');
+    author.textContent = authorLabel;
+    header.append(author);
+  }
+  if (preview.authorHandle) {
+    const handle = document.createElement('span');
+    handle.textContent = `@${preview.authorHandle}`;
+    header.append(handle);
+  }
+  const text = document.createElement('p');
+  text.className = 'fxtwitter-preview-text';
+  const truncatedText = truncateFxTwitterPreviewText(preview.text);
+  let expanded = false;
+  const renderText = (): void => {
+    const value = expanded ? preview.text : truncatedText.text;
+    text.replaceChildren();
+    appendFxTwitterPreviewTextLinks(value, text);
+    text.setAttribute('aria-expanded', String(expanded));
+  };
+  renderText();
+  if (truncatedText.truncated) {
+    text.classList.add('is-expandable');
+    text.tabIndex = 0;
+    text.setAttribute('role', 'button');
+    text.title = 'クリックして全文を表示';
+    const toggleText = (): void => {
+      expanded = !expanded;
+      renderText();
+      text.title = expanded ? 'クリックして省略表示に戻す' : 'クリックして全文を表示';
+    };
+    text.addEventListener('click', toggleText);
+    text.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      toggleText();
+    });
+  }
+  card.append(header, text);
+
+  if (config?.global.show_post_images ?? false) {
+    const photos = document.createElement('div');
+    photos.className = 'fxtwitter-preview-photos';
+    for (const rawUrl of preview.photoUrls) {
+      const imageUrl = safeHttpUrl(rawUrl, undefined);
+      if (!imageUrl) continue;
+      const image = document.createElement('img');
+      image.className = 'post-image post-image-thumbnail fxtwitter-preview-photo';
+      image.src = imageUrl;
+      image.alt = 'X投稿の添付画像';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.referrerPolicy = 'no-referrer';
+      image.dataset.externalUrl = imageUrl;
+      photos.append(image);
+    }
+    if (photos.childElementCount > 0) card.append(photos);
+  }
+
+  return card;
+}
+
+function appendFxTwitterPreviews(body: HTMLElement): void {
+  if (!(config?.global.show_fxtwitter_previews ?? false)) return;
+
+  const seenStatusIds = new Set<string>();
+  for (const link of Array.from(body.querySelectorAll<HTMLAnchorElement>('a[data-external-url]'))) {
+    const reference = parseFxTwitterStatusUrl(link.href);
+    if (!reference || seenStatusIds.has(reference.id)) continue;
+    seenStatusIds.add(reference.id);
+
+    const loading = document.createElement('span');
+    loading.className = 'fxtwitter-preview-loading post-copy-exclusion';
+    loading.textContent = 'X投稿を読み込み中…';
+    link.after(loading);
+
+    void fetchFxTwitterPreview(reference.id).then((preview) => {
+      if (!preview || !loading.isConnected) {
+        loading.remove();
+        return;
+      }
+      loading.replaceWith(buildFxTwitterPreviewCard(preview));
+    });
+  }
+}
+
 const droppedHtmlTags = new Set([
   'SCRIPT',
   'STYLE',
@@ -2277,6 +2411,7 @@ function buildSafePostBody(post: ParsedPost, compactTreeQuotes = false): HTMLEle
 
   if (compactTreeQuotes) compactTreeQuotedArea(body);
   applyHighlightToTextNodes(body, highlightBodyRegex);
+  appendFxTwitterPreviews(body);
   return body;
 }
 
@@ -4535,6 +4670,7 @@ function renderGeneralSettingsForm(): void {
   generalHideTreeLinkInput.checked = !(generalDraftGlobal.hide_tree_link ?? false);
   generalHideThreadHideLinkInput.checked = !(generalDraftGlobal.hide_thread_hide_link ?? false);
   generalShowImagesInput.checked = generalDraftGlobal.show_post_images;
+  generalShowFxTwitterPreviewsInput.checked = generalDraftGlobal.show_fxtwitter_previews ?? false;
   updateImageSizeSettingsVisibility();
   generalExpandNumericCharacterReferencesInput.checked = generalDraftGlobal.expand_numeric_character_references ?? false;
   generalShowImageDetailInput.checked = generalDraftGlobal.show_image_detail_link;
@@ -4606,6 +4742,7 @@ function commitGeneralSettingsForm(): void {
   generalDraftGlobal.hide_tree_link = !generalHideTreeLinkInput.checked;
   generalDraftGlobal.hide_thread_hide_link = !generalHideThreadHideLinkInput.checked;
   generalDraftGlobal.show_post_images = generalShowImagesInput.checked;
+  generalDraftGlobal.show_fxtwitter_previews = generalShowFxTwitterPreviewsInput.checked;
   updateImageSizeSettingsVisibility();
   generalDraftGlobal.expand_numeric_character_references = generalExpandNumericCharacterReferencesInput.checked;
   generalDraftGlobal.show_image_detail_link = generalShowImageDetailInput.checked;

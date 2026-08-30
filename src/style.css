@@ -624,6 +624,60 @@ button:disabled { cursor: default; opacity: .45; }
   cursor: pointer;
   background: var(--color-panel-strong);
 }
+
+.fxtwitter-preview-loading {
+  display: block;
+  margin: 8px 0;
+  color: var(--color-muted);
+  font-size: .9em;
+}
+
+.fxtwitter-preview {
+  display: grid;
+  gap: 8px;
+  max-width: min(100%, 680px);
+  margin: 10px 0 10px 2em;
+  border: 1px solid var(--post-border-color);
+  border-radius: 8px;
+  background: var(--color-panel-strong);
+  padding: 10px 12px;
+}
+
+.fxtwitter-preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  font-weight: 700;
+}
+
+.fxtwitter-preview-header span {
+  color: var(--color-muted);
+}
+
+.fxtwitter-preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.fxtwitter-preview-text.is-expandable {
+  cursor: pointer;
+}
+
+.fxtwitter-preview-text.is-expandable:focus-visible {
+  outline: 2px solid var(--post-link-hover-color);
+  outline-offset: 3px;
+}
+
+.fxtwitter-preview-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fxtwitter-preview-photo {
+  margin: 0;
+}
 .post-image:hover {
   border-color: var(--post-link-hover-color);
 }

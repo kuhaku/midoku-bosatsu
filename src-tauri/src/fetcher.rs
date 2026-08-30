@@ -23,6 +23,14 @@ use crate::{
     reply_notification::SubmittedPostFields,
 };
 
+fn fxtwitter_status_endpoint(status_id: &str) -> Result<Url, String> {
+    if status_id.is_empty() || !status_id.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("FxTwitterの投稿IDが不正です".to_string());
+    }
+    Url::parse(&format!("https://api.fxtwitter.com/2/status/{status_id}"))
+        .map_err(|e| format!("FxTwitter API URLの生成に失敗しました: {e}"))
+}
+
 /// HTTPクライアントと、各サイトの「次回未読リロード用FORM」および
 /// 「新規投稿FORMの参照元となる最新メインHTML」を保持する。
 ///
@@ -64,6 +72,35 @@ impl ReaderState {
             main_html_cache: Mutex::new(HashMap::new()),
             known_post_ids: Mutex::new(HashMap::new()),
         })
+    }
+
+    pub async fn fetch_fxtwitter_status(
+        &self,
+        status_id: &str,
+    ) -> Result<serde_json::Value, String> {
+        let endpoint = fxtwitter_status_endpoint(status_id)?;
+        let response = self
+            .client
+            .get(endpoint)
+            .header(USER_AGENT, "Midoku Bosatsu FxTwitter Preview")
+            .header(ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("FxTwitter APIの取得に失敗しました: {e}"))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!(
+                "FxTwitter APIがHTTPエラーを返しました: {} {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or("")
+            ));
+        }
+        let body = response
+            .bytes()
+            .await
+            .map_err(|e| format!("FxTwitter APIのレスポンス読み込みに失敗しました: {e}"))?;
+        serde_json::from_slice(&body)
+            .map_err(|e| format!("FxTwitter APIのレスポンス解析に失敗しました: {e}"))
     }
 
     pub async fn clear_reload_forms(&self) {
@@ -734,6 +771,16 @@ mod tests {
             post_form_cache_key("test", source, "new"),
             post_form_cache_key("test", source, "follow")
         );
+    }
+
+    #[test]
+    fn fxtwitter_status_endpoint_accepts_only_numeric_status_ids() {
+        assert_eq!(
+            fxtwitter_status_endpoint("123456789").unwrap().as_str(),
+            "https://api.fxtwitter.com/2/status/123456789"
+        );
+        assert!(fxtwitter_status_endpoint("https://example.com/").is_err());
+        assert!(fxtwitter_status_endpoint("123/../../private").is_err());
     }
 
     #[test]

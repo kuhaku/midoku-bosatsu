@@ -16,6 +16,10 @@ post_order = "newest_first"
 # falseなら画像URLからサムネイル用<img>を生成しない。掲示板HTML中のIMGタグは常に無視する。
 show_post_images = true
 
+# X/Twitterの投稿リンクをFxTwitter APIで取得し、投稿カードとして表示する。
+# 外部サービスへの通信を伴うため、初期値はOFF。
+show_fxtwitter_previews = false
+
 # trueなら画像URLの左に [詳] を表示し、「詳」からGoogleレンズを開く。
 show_image_detail_link = true
 # 大きな画像がタイムラインを占有しすぎないための表示上限。
