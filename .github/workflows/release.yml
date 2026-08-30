@@ -170,6 +170,9 @@ jobs:
           GITHUB_SERVER_URL: ${{ github.server_url }}
         run: node scripts/generate-updater-manifest.mjs release-assets release-assets-to-upload
 
+      - name: Set updater release notes
+        run: node scripts/set-updater-notes.mjs release-assets-to-upload/latest.json release-notes.md
+
       - name: Upload release assets and publish draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -130,6 +130,10 @@ test('release workflow builds each platform in parallel and publishes all assets
   );
   assert.match(workflow, /publish-release:[\s\S]*?actions\/download-artifact@v8/);
   assert.match(workflow, /publish-release:[\s\S]*?node scripts\/generate-updater-manifest\.mjs/);
+  assert.match(
+    workflow,
+    /Generate unified updater manifest[\s\S]*?node scripts\/generate-updater-manifest\.mjs[\s\S]*?Set updater release notes[\s\S]*?node scripts\/set-updater-notes\.mjs release-assets-to-upload\/latest\.json release-notes\.md/,
+  );
   assert.match(workflow, /publish-release:[\s\S]*?gh release upload/);
   assert.equal((workflow.match(/gh release upload/g) ?? []).length, 1);
   assert.match(workflow, /publish-release:[\s\S]*?gh release edit/);
