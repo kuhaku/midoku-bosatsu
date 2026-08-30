@@ -25,10 +25,6 @@ test('一般設定のツリー項目をツリー表示セクションにまと�
   assert.match(mainSource, /「木」を表示する/u);
   assert.match(mainSource, /「消」を表示する/u);
   assert.ok(
-    mainSource.indexOf('id="general-max-posts"') < mainSource.indexOf('id="general-hide-tree-link"'),
-    '木設定は投稿表示上限数の後に配置してください',
-  );
-  assert.ok(
     mainSource.indexOf('id="general-hide-tree-link"') < mainSource.indexOf('id="general-hide-thread-hide-link"'),
     '消設定は木設定の後に配置してください',
   );

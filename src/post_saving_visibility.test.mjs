@@ -9,10 +9,6 @@ test('投稿保存機能の設定を基本的な設定に追加する', () => {
   const timelineSection = mainSource.match(/<h3>基本的な設定<\/h3>[\s\S]*?<\/details>/u)?.[0];
   assert.ok(timelineSection, '基本的な設定セクションが見つかりません');
   assert.match(timelineSection, /投稿保存機能をONにする/u);
-  assert.ok(
-    timelineSection.indexOf('id="general-max-posts"') < timelineSection.indexOf('id="general-post-saving-enabled"'),
-    '投稿保存機能の設定は投稿表示上限数の後に配置してください',
-  );
   assert.match(mainSource, /post_saving_enabled: boolean/u);
   assert.match(mainSource, /generalDraftGlobal\.post_saving_enabled = generalPostSavingEnabledInput\.checked/u);
   assert.match(configSource, /post_saving_enabled: bool/u);

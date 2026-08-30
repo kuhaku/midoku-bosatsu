@@ -30,6 +30,7 @@ import {
 } from './reload_cooldown.ts';
 import {
   clearPostLog,
+  limitPostLog,
   parsePostLog,
   savePostLog,
 } from './post_log.ts';
@@ -78,7 +79,6 @@ import {
 
 type GlobalConfig = {
   poll_interval_seconds: number;
-  max_posts: number;
   post_order: 'newest_first' | 'oldest_first' | string;
   show_post_images: boolean;
   show_image_detail_link: boolean;
@@ -145,6 +145,7 @@ type SiteConfig = {
   enabled: boolean;
   encoding: string;
   user_agent: string;
+  max_posts: number;
   timezone_offset_minutes: number;
   timezone_region?: string;
   badge_style: BbsBadgeStyleConfig;
@@ -573,10 +574,6 @@ app.innerHTML = `
                 <small>自動で未読リロードする間隔です。BBSへの負荷を避けるため30秒以上にしてください。</small>
                 <small id="general-poll-interval-warning" class="settings-inline-warning" hidden>BBSへの過剰な負荷を避けるため、未読リロード間隔は30秒以上に設定してください。</small>
               </label>
-              <label>投稿表示上限数
-                <input id="general-max-posts" type="number" min="1" max="100000" step="1">
-                <small>全BBSを合わせたタイムラインに保持する最大投稿数です。</small>
-              </label>
               <label class="settings-check settings-check-card">
                 <input id="general-post-saving-enabled" type="checkbox"> 投稿保存機能をONにする
                 <small>ONのとき、投稿やツリーを保存し、保存済み投稿一覧を利用できます。</small>
@@ -825,6 +822,10 @@ app.innerHTML = `
                 <label id="bbs-timezone-custom-field" hidden>カスタムUTCオフセット（分）
                   <input id="bbs-timezone-custom-offset" type="number" min="-1440" max="1440" step="1" value="540">
                   <small>例: UTC+9:00 は 540、UTC-5:00 は -300。</small>
+                </label>
+                <label>投稿表示上限数
+                  <input id="bbs-max-posts" type="number" min="1" max="100000" step="1">
+                  <small>このBBSに保持する最大投稿数です。</small>
                 </label>
                 <label class="settings-span-2">User-Agent<input id="bbs-user-agent" type="text" spellcheck="false"></label>
               </div>
@@ -1217,7 +1218,6 @@ const advancedPostColorFieldsElement = mustElement<HTMLDivElement>('#advanced-po
 const treeColorFieldsElement = mustElement<HTMLDivElement>('#tree-color-fields');
 const generalPollIntervalInput = mustElement<HTMLInputElement>('#general-poll-interval');
 const generalPollIntervalWarning = mustElement<HTMLElement>('#general-poll-interval-warning');
-const generalMaxPostsInput = mustElement<HTMLInputElement>('#general-max-posts');
 const generalPostSavingEnabledInput = mustElement<HTMLInputElement>('#general-post-saving-enabled');
 const generalTreeViewEnabledInput = mustElement<HTMLInputElement>('#general-tree-view-enabled');
 const generalHideTreeLinkInput = mustElement<HTMLInputElement>('#general-hide-tree-link');
@@ -1323,6 +1323,7 @@ const bbsEncodingInput = mustElement<HTMLSelectElement>('#bbs-encoding');
 const bbsTimezoneInput = mustElement<HTMLSelectElement>('#bbs-timezone');
 const bbsTimezoneCustomField = mustElement<HTMLElement>('#bbs-timezone-custom-field');
 const bbsTimezoneCustomOffsetInput = mustElement<HTMLInputElement>('#bbs-timezone-custom-offset');
+const bbsMaxPostsInput = mustElement<HTMLInputElement>('#bbs-max-posts');
 const bbsUserAgentInput = mustElement<HTMLInputElement>('#bbs-user-agent');
 const bbsBadgeCssClassInput = mustElement<HTMLInputElement>('#bbs-badge-css-class');
 const bbsBadgePreview = mustElement<HTMLSpanElement>('#bbs-badge-preview');
@@ -1763,17 +1764,21 @@ function visibleNewestFirstPosts(): ParsedPost[] {
   return filterHiddenThreadPosts(newestFirstPosts(), hiddenThreadKeys).filter((post) => !isNgPost(post));
 }
 
+function maxPostsBySite(): Record<string, number> {
+  return Object.fromEntries((config?.sites ?? []).map((site) => [site.id, site.max_posts]));
+}
+
 function mergePosts(posts: ParsedPost[]): void {
   for (const post of posts) {
     postsByKey.set(postKey(post), post);
   }
 
-  // 表示順に関係なく「最新 max_posts 件」を保持し、古いものから捨てる。
-  const maxPosts = config?.global.max_posts ?? 666;
+  // 表示順に関係なく、BBSごとに「最新 max_posts 件」を保持し、古いものから捨てる。
   const newest = newestFirstPosts();
+  const keptPostKeys = new Set(limitPostLog(newest, maxPostsBySite()).map(postKey));
 
-  for (const post of newest.slice(maxPosts)) {
-    postsByKey.delete(postKey(post));
+  for (const post of newest) {
+    if (!keptPostKeys.has(postKey(post))) postsByKey.delete(postKey(post));
   }
 
   persistPostLog();
@@ -1785,7 +1790,7 @@ function persistPostLog(): void {
       localStorage,
       POST_LOG_STORAGE_KEY,
       newestFirstPosts(),
-      config?.global.max_posts ?? 666,
+      maxPostsBySite(),
     );
   } catch {
     // localStorageが使えない環境でも、この起動中の投稿ログは維持する。
@@ -4529,7 +4534,6 @@ function renderGeneralSettingsForm(): void {
   generalPostFontSizeInput.value = String(generalDraftStyle.post_font_size_px);
   generalPollIntervalInput.value = String(generalDraftGlobal.poll_interval_seconds);
   updatePollIntervalWarning();
-  generalMaxPostsInput.value = String(generalDraftGlobal.max_posts);
   generalPostSavingEnabledInput.checked = generalDraftGlobal.post_saving_enabled ?? true;
   generalTreeViewEnabledInput.checked = generalDraftGlobal.tree_view_enabled ?? false;
   generalHideTreeLinkInput.checked = !(generalDraftGlobal.hide_tree_link ?? false);
@@ -4599,8 +4603,6 @@ function commitGeneralSettingsForm(): void {
 
   const pollInterval = Number.parseInt(generalPollIntervalInput.value, 10);
   if (Number.isFinite(pollInterval)) generalDraftGlobal.poll_interval_seconds = pollInterval;
-  const maxPosts = Number.parseInt(generalMaxPostsInput.value, 10);
-  if (Number.isFinite(maxPosts)) generalDraftGlobal.max_posts = maxPosts;
   generalDraftGlobal.post_saving_enabled = generalPostSavingEnabledInput.checked;
   generalDraftGlobal.tree_view_enabled = generalTreeViewEnabledInput.checked;
   generalDraftGlobal.hide_tree_link = !generalHideTreeLinkInput.checked;
@@ -4737,9 +4739,6 @@ function validateGeneralSettings(): string | null {
     return '未読リロード間隔は30〜86400秒で指定してください。';
   }
   generalDraftGlobal.poll_interval_seconds = pollIntervalInputValue;
-  if (!Number.isInteger(generalDraftGlobal.max_posts) || generalDraftGlobal.max_posts < 1 || generalDraftGlobal.max_posts > 100000) {
-    return '投稿表示上限数は1〜100000件で指定してください。';
-  }
   if (!Number.isInteger(generalDraftGlobal.max_image_height_px) || generalDraftGlobal.max_image_height_px < 1 || generalDraftGlobal.max_image_height_px > 10000) {
     return '画像サムネイル最大高は1〜10000pxで指定してください。';
   }
@@ -5001,6 +5000,7 @@ function createDefaultSiteConfig(): SiteConfig {
     enabled: true,
     encoding: 'shift_jis',
     user_agent: 'AyashiiWorldReader/0.2 (+Tauri)',
+    max_posts: 666,
     timezone_offset_minutes: 540,
     timezone_region: "日本",
     badge_style: {
@@ -5147,6 +5147,8 @@ function commitBbsEditorForm(): void {
   site.name = bbsNameInput.value.trim();
   site.encoding = bbsEncodingInput.value.trim();
   site.user_agent = bbsUserAgentInput.value.trim();
+  const maxPosts = Number.parseInt(bbsMaxPostsInput.value, 10);
+  if (Number.isFinite(maxPosts)) site.max_posts = maxPosts;
   const badge = normalizeBadgeStyle(site);
   badge.text_color = bbsBadgeTextColorInput.value.trim().toLowerCase();
   badge.background_color = bbsBadgeBackgroundColorInput.value.trim().toLowerCase();
@@ -5239,6 +5241,7 @@ function renderBbsEditor(): void {
   bbsTimezoneCustomOffsetInput.value = String(timezoneOffset);
   updateTimezoneCustomField();
   bbsUserAgentInput.value = site.user_agent;
+  bbsMaxPostsInput.value = String(site.max_posts);
   const badge = normalizeBadgeStyle(site);
   bbsBadgeTextColorInput.value = badge.text_color.toLowerCase();
   bbsBadgeBackgroundColorInput.value = badge.background_color.toLowerCase();
@@ -5381,6 +5384,9 @@ function validateBbsEditorSites(sites: SiteConfig[]): string | null {
     if (!isHttpUrl(site.fetch.url)) return `${label}: 取得先URLをHTTP(S) URLで入力してください。`;
     if (!site.encoding) return `${label}: 文字コードを指定してください。`;
     if (!site.user_agent) return `${label}: User-Agentを入力してください。`;
+    if (!Number.isInteger(site.max_posts) || site.max_posts < 1 || site.max_posts > 100000) {
+      return `${label}: 投稿表示上限数は1〜100000件で指定してください。`;
+    }
     if (!Number.isFinite(site.timezone_offset_minutes) || Math.abs(site.timezone_offset_minutes) > 1440) {
       return `${label}: タイムゾーンのUTCオフセットが不正です。`;
     }
