@@ -52,6 +52,11 @@ import {
 } from './new_post_destination.ts';
 import { isPostSubmitShortcut } from './post_submit_shortcut.ts';
 import { isPostNavigationShortcutTarget } from './keyboard_shortcut_target.ts';
+import {
+  bbsTimelineSelectionForShortcutKey,
+  filterPostsForBbsTimeline,
+} from './bbs_timeline_shortcut.ts';
+import { bbsTimelineMenuItems } from './bbs_timeline_menu.ts';
 import { formatCopiedPostFirstLine } from './post_copy_format.ts';
 import { isReferencePostLink } from './post_link_actions.ts';
 import {
@@ -365,6 +370,10 @@ app.innerHTML = `
       <nav class="timeline-navigation" aria-label="投稿タイムラインの操作">
         <button id="reload-button" class="primary-button" type="button">未読リロード</button>
         <button id="timeline-unread-jump-button" type="button" disabled>未読境界へ</button>
+        <div class="bbs-timeline-switcher">
+          <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
+          <div id="bbs-timeline-menu" class="bbs-timeline-menu" role="menu" aria-label="表示するBBSを選択"></div>
+        </div>
         <button id="saved-posts-button" type="button" hidden>保存済み投稿一覧</button>
         <button id="shortcut-key-list-button" type="button">キー一覧</button>
         <button id="new-post-button" type="button" disabled>新規投稿</button>
@@ -442,6 +451,8 @@ app.innerHTML = `
             <dt><kbd>d</kbd></dt><dd>現在の投稿を保存／解除</dd>
             <dt><kbd>Ctrl + r / Command + r</kbd></dt><dd>未読リロード</dd>
             <dt><kbd>Ctrl + b / Command + b</kbd></dt><dd>左ナビを表示／非表示</dd>
+            <dt><kbd>Ctrl + 1〜9 / Command + 1〜9</kbd></dt><dd>登録順のBBS投稿だけを表示</dd>
+            <dt><kbd>Ctrl + 0 / Command + 0</kbd></dt><dd>すべての掲示板を表示</dd>
           </dl>
         </section>
         <section aria-labelledby="shortcut-key-list-post-compose-title">
@@ -1046,6 +1057,7 @@ app.innerHTML = `
     <span>投稿を非表示にしました</span>
     <button id="thread-hide-undo-button" type="button">戻す</button>
   </div>
+  <div id="bbs-timeline-toast" class="bbs-timeline-toast" hidden role="status" aria-live="polite"></div>
 `;
 
 const lastFetchElement = mustElement<HTMLElement>('#last-fetch');
@@ -1057,6 +1069,7 @@ replyNotificationBannerRow.addEventListener('click', () => {
 });
 const threadHideUndoToast = mustElement<HTMLElement>('#thread-hide-undo-toast');
 const threadHideUndoButton = mustElement<HTMLButtonElement>('#thread-hide-undo-button');
+const bbsTimelineToast = mustElement<HTMLElement>('#bbs-timeline-toast');
 const fixedStatusBar = mustElement<HTMLElement>('#fixed-status-bar');
 const noticeElement = mustElement<HTMLElement>('#notice');
 const postsElement = mustElement<HTMLDivElement>('#posts');
@@ -1089,6 +1102,7 @@ const textSearchCloseButton = mustElement<HTMLButtonElement>('#text-search-close
 const reloadButton = mustElement<HTMLButtonElement>('#reload-button');
 const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
+const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const savedPostsButton = mustElement<HTMLButtonElement>('#saved-posts-button');
 const shortcutKeyListButton = mustElement<HTMLButtonElement>('#shortcut-key-list-button');
@@ -1363,6 +1377,8 @@ const replyNotificationToggleInFlight = new Set<string>();
 const hiddenThreadKeys = new Set<string>();
 let threadHideUndoTarget: ResetHiddenThread | null = null;
 let threadHideUndoTimer: number | null = null;
+let bbsTimelineToastTimer: number | null = null;
+let selectedBbsTimelineSiteId: string | null = null;
 let notificationSoundDraftPath: string | null = null;
 let notificationSoundDraftName: string | null = null;
 let notificationSoundResetRequested = false;
@@ -4055,6 +4071,64 @@ function shouldHandleModifiedNavigationShortcut(event: KeyboardEvent): boolean {
   return true;
 }
 
+function shouldHandleBbsTimelineShortcut(event: KeyboardEvent): boolean {
+  if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return false;
+  if (!/^[0-9]$/u.test(event.key)) return false;
+  if (isEditableKeyboardTarget(event.target)) return false;
+  if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden) return false;
+  return Boolean(bbsActionView.hidden);
+}
+
+function showBbsTimelineToast(message: string): void {
+  if (bbsTimelineToastTimer !== null) window.clearTimeout(bbsTimelineToastTimer);
+  bbsTimelineToast.textContent = message;
+  bbsTimelineToast.hidden = false;
+  bbsTimelineToastTimer = window.setTimeout(() => {
+    bbsTimelineToast.hidden = true;
+    bbsTimelineToastTimer = null;
+  }, 3_000);
+}
+
+function renderBbsTimelineMenu(): void {
+  if (!config) return;
+  const fragment = document.createDocumentFragment();
+  for (const item of bbsTimelineMenuItems(config.sites, selectedBbsTimelineSiteId)) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'menuitemradio');
+    button.textContent = item.label;
+    button.disabled = item.disabled;
+    button.setAttribute('aria-checked', String(item.selected));
+    button.classList.toggle('is-selected', item.selected);
+    button.addEventListener('click', () => selectBbsTimeline(item.siteId));
+    fragment.append(button);
+  }
+  bbsTimelineMenu.replaceChildren(fragment);
+}
+
+function selectBbsTimeline(selection: string | null): void {
+  selectedBbsTimelineSiteId = selection;
+  currentPostKey = null;
+  renderPosts();
+  renderBbsTimelineMenu();
+  window.scrollTo({ top: 0 });
+
+  const siteName = selection === null
+    ? null
+    : config?.sites.find((site) => site.id === selection)?.name ?? selection;
+  showBbsTimelineToast(siteName === null ? 'すべての掲示板を表示しています' : `${siteName} を表示しています`);
+}
+
+function selectBbsTimelineForShortcut(key: string): boolean {
+  if (!config) return false;
+  const selection = bbsTimelineSelectionForShortcutKey(config.sites, key);
+  if (selection === undefined) return false;
+
+  selectBbsTimeline(selection);
+  return true;
+}
+
 function toggleTimelineNavigation(): void {
   if (!bbsActionView.hidden) return;
   const hidden = timelineNavigation.classList.toggle('is-hidden');
@@ -4063,7 +4137,8 @@ function toggleTimelineNavigation(): void {
 
 function renderPosts(): void {
   const anchor = captureScrollAnchor();
-  const posts = sortedPosts().filter((post) => !isNgPost(post));
+  const posts = filterPostsForBbsTimeline(sortedPosts(), selectedBbsTimelineSiteId)
+    .filter((post) => !isNgPost(post));
   const fragment = document.createDocumentFragment();
   const newestFirst = config?.global.post_order !== 'oldest_first';
   const unreadPostsNewestFirst = posts.slice().sort(compareNewestFirst).filter(isPostUnread);
@@ -5346,6 +5421,10 @@ function validateBbsEditorSites(sites: SiteConfig[]): string | null {
 
 async function applyBbsConfigAfterSave(loadedConfig: ReaderConfig): Promise<void> {
   config = loadedConfig;
+  if (selectedBbsTimelineSiteId !== null && !loadedConfig.sites.some((site) => site.id === selectedBbsTimelineSiteId && site.enabled)) {
+    selectedBbsTimelineSiteId = null;
+  }
+  renderBbsTimelineMenu();
   enabledSites = loadedConfig.sites.filter((site) => site.enabled);
   newPostButton.disabled = enabledSites.length === 0;
   applyBbsBadgeStyles(loadedConfig.sites);
@@ -5546,6 +5625,7 @@ async function bootstrap(): Promise<void> {
     const loadedStyle = await invoke<ReaderStyleConfig>('get_reader_style');
     config = loadedConfig;
     enabledSites = loadedConfig.sites.filter((site) => site.enabled);
+    renderBbsTimelineMenu();
     applyBbsBadgeStyles(loadedConfig.sites);
     savedReaderStyle = loadedStyle;
     settingsButton.disabled = false;
@@ -6074,6 +6154,11 @@ document.addEventListener('keydown', (event) => {
   if (isTextSearchShortcut(event) && shortcutKeyListView.hidden) {
     event.preventDefault();
     openTextSearch();
+    return;
+  }
+
+  if (shouldHandleBbsTimelineShortcut(event) && selectBbsTimelineForShortcut(event.key)) {
+    event.preventDefault();
     return;
   }
 

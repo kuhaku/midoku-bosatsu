@@ -42,6 +42,8 @@ test('キー一覧は投稿操作と検索操作を利用者向けに説明す�
     ['d', '現在の投稿を保存／解除'],
     ['Ctrl + r / Command + r', '未読リロード'],
     ['Ctrl + b / Command + b', '左ナビを表示／非表示'],
+    ['Ctrl + 1〜9 / Command + 1〜9', '登録順のBBS投稿だけを表示'],
+    ['Ctrl + 0 / Command + 0', 'すべての掲示板を表示'],
   ];
   const timelineSection = keyListView.match(/<section aria-labelledby="shortcut-key-list-post-navigation-title">([\s\S]*?)<\/section>/u)?.[1];
 

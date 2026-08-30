@@ -11,7 +11,7 @@ test('左ナビに主要操作を指定順で置き、タイムライン見出�
   assert.ok(navigation, '左ナビが見つかりません');
   assert.deepEqual(
     [...navigation.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]),
-    ['未読リロード', '未読境界へ', '保存済み投稿一覧', 'キー一覧', '新規投稿', '設定'],
+    ['未読リロード', '未読境界へ', 'BBS表示切替', '保存済み投稿一覧', 'キー一覧', '新規投稿', '設定'],
   );
   assert.match(navigation, /id="timeline-unread-jump-button"/u);
   assert.doesNotMatch(mainSource, /<h1>未読菩薩<\/h1>/u);
@@ -44,7 +44,18 @@ test('左ナビは追加の余白を置かない', () => {
 test('左ナビは新規投稿以外のボタンの背景色と枠を表示しない', () => {
   assert.match(
     styleSource,
-    /\.timeline-navigation button:not\(#new-post-button\)\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/u,
+    /\.timeline-navigation > button:not\(#new-post-button\)\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/u,
+  );
+});
+
+test('BBS表示切替のメニューは投稿カラムより前面に表示し、切替ボタンはナビの通常ボタンと同じ見た目にする', () => {
+  assert.match(
+    styleSource,
+    /\.timeline-navigation\s*\{[^}]*position:\s*sticky[^}]*z-index:\s*2/u,
+  );
+  assert.match(
+    styleSource,
+    /\.bbs-timeline-switcher > button\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/u,
   );
 });
 
@@ -62,7 +73,7 @@ test('1カラム表示では左ナビ由来のボタンを1行に並べる', () 
   assert.ok(singleColumnMedia, '1カラム用のメディアクエリが見つかりません');
   assert.match(
     singleColumnMedia,
-    /\.timeline-navigation\s*\{[^}]*grid-template-columns:\s*repeat\(6, max-content\)[^}]*justify-content:\s*start/u,
+    /\.timeline-navigation\s*\{[^}]*grid-template-columns:\s*repeat\(7, max-content\)[^}]*justify-content:\s*start/u,
   );
   assert.match(singleColumnMedia, /\.timeline-navigation button\s*\{[^}]*width:\s*auto/u);
 });
