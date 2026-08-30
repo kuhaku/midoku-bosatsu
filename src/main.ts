@@ -575,7 +575,7 @@ app.innerHTML = `
               </label>
               <label>投稿表示上限数
                 <input id="general-max-posts" type="number" min="1" max="100000" step="1">
-                <small>全BBSを合わせたタイムラインに保持する最大投稿数です。</small>
+                <small>各BBSごとに保持する最大投稿数です。 (登録したBBSが 3 で、投稿表示上限数が 100 なら、最大で 3 * 100 = 300件の投稿を保持します)</small>
               </label>
               <label class="settings-check settings-check-card">
                 <input id="general-post-saving-enabled" type="checkbox"> 投稿保存機能をONにする
