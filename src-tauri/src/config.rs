@@ -19,6 +19,7 @@ pub struct ReaderConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalConfig {
     pub poll_interval_seconds: u64,
+    pub max_posts: usize,
     #[serde(default = "default_post_order")]
     pub post_order: String,
     #[serde(default = "default_show_post_images")]
@@ -160,8 +161,6 @@ pub struct SiteConfig {
     pub enabled: bool,
     pub encoding: String,
     pub user_agent: String,
-    #[serde(default = "default_max_posts")]
-    pub max_posts: usize,
     #[serde(default = "default_timezone_offset_minutes")]
     pub timezone_offset_minutes: i32,
     #[serde(default)]
@@ -236,9 +235,6 @@ pub struct ReloadFormConfig {
 
 fn default_true() -> bool {
     true
-}
-fn default_max_posts() -> usize {
-    666
 }
 fn default_config_version() -> u32 {
     1
@@ -485,11 +481,11 @@ fn migrate_global_if_needed(app: &AppHandle, target: &Path) -> Result<(), String
     Ok(())
 }
 
-fn migrate_bbs_value(
-    user: &mut toml::Value,
-    bundled: &toml::Value,
-    legacy_max_posts: usize,
-) -> Result<bool, String> {
+fn migrate_bbs_if_needed(app: &AppHandle, target: &Path) -> Result<(), String> {
+    let bundled_path = bundled_config_path(app, BBS_FILE)?;
+    let bundled = read_toml_value(&bundled_path)?;
+    let mut user = read_toml_value(target)?;
+
     let bundled_version = bundled
         .get("config_version")
         .and_then(toml::Value::as_integer)
@@ -499,7 +495,7 @@ fn migrate_bbs_value(
         .and_then(toml::Value::as_integer)
         .unwrap_or(1);
     if user_version >= bundled_version {
-        return Ok(false);
+        return Ok(());
     }
 
     let bundled_sites = bundled
@@ -515,14 +511,6 @@ fn migrate_bbs_value(
         .or_insert_with(|| toml::Value::Array(Vec::new()))
         .as_array_mut()
         .ok_or_else(|| "ユーザー bbs.toml の sites が配列ではありません".to_string())?;
-
-    for site in user_sites.iter_mut() {
-        let site = site
-            .as_table_mut()
-            .ok_or_else(|| "ユーザー bbs.toml の sites 要素がtableではありません".to_string())?;
-        site.entry("max_posts".to_string())
-            .or_insert_with(|| toml::Value::Integer(legacy_max_posts as i64));
-    }
 
     for bundled_site in bundled_sites {
         let Some(bundled_id) = bundled_site.get("id").and_then(toml::Value::as_str) else {
@@ -542,26 +530,7 @@ fn migrate_bbs_value(
         "config_version".to_string(),
         toml::Value::Integer(bundled_version),
     );
-    Ok(true)
-}
-
-fn legacy_global_max_posts(global_path: &Path) -> usize {
-    read_toml_value(global_path)
-        .ok()
-        .and_then(|global| global.get("global")?.get("max_posts")?.as_integer())
-        .and_then(|max_posts| usize::try_from(max_posts).ok())
-        .filter(|max_posts| (1..=100_000).contains(max_posts))
-        .unwrap_or_else(default_max_posts)
-}
-
-fn migrate_bbs_if_needed(app: &AppHandle, target: &Path, global_path: &Path) -> Result<(), String> {
-    let bundled_path = bundled_config_path(app, BBS_FILE)?;
-    let bundled = read_toml_value(&bundled_path)?;
-    let mut user = read_toml_value(target)?;
-    if migrate_bbs_value(&mut user, &bundled, legacy_global_max_posts(global_path))? {
-        write_toml_value(target, &user)?;
-    }
-    Ok(())
+    write_toml_value(target, &user)
 }
 
 fn ensure_user_config_paths(app: &AppHandle) -> Result<ConfigPaths, String> {
@@ -576,7 +545,7 @@ fn ensure_user_config_paths(app: &AppHandle) -> Result<ConfigPaths, String> {
     copy_bundled_if_missing(app, BBS_FILE, &bbs_path)?;
     copy_bundled_if_missing(app, STYLE_FILE, &style_path)?;
     migrate_global_if_needed(app, &global_path)?;
-    migrate_bbs_if_needed(app, &bbs_path, &global_path)?;
+    migrate_bbs_if_needed(app, &bbs_path)?;
 
     Ok(ConfigPaths {
         global: global_path,
@@ -633,11 +602,6 @@ fn validate_site_config(
     }
     if site.user_agent.trim().is_empty() {
         return Err(format!("{id}: User-Agentが空です"));
-    }
-    if !(1..=100_000).contains(&site.max_posts) {
-        return Err(format!(
-            "{id}: 投稿表示上限数は1〜100000件で指定してください"
-        ));
     }
     if !(-24 * 60..=24 * 60).contains(&site.timezone_offset_minutes) {
         return Err(format!("{id}: timezone_offset_minutes の範囲が不正です"));
@@ -744,6 +708,9 @@ pub fn save_bbs_sites(app: &AppHandle, sites: Vec<SiteConfig>) -> Result<(), Str
 pub(crate) fn validate_global_config(global: &GlobalConfig) -> Result<(), String> {
     if !(30..=86_400).contains(&global.poll_interval_seconds) {
         return Err("未読リロード間隔は30〜86400秒で指定してください".to_string());
+    }
+    if !(1..=100_000).contains(&global.max_posts) {
+        return Err("投稿表示上限数は1〜100000件で指定してください".to_string());
     }
     if global.max_image_height_px == 0 {
         return Err("max_image_height_px は1以上にしてください".to_string());
@@ -1076,26 +1043,6 @@ reply_notification_sound_enabled = true
             user["global"]["reply_notification_sound_enabled"].as_bool(),
             Some(true),
         );
-    }
-
-    #[test]
-    fn bbs_migration_copies_legacy_global_post_limit_to_each_site() {
-        let bundled: toml::Value = toml::from_str(include_str!("../resources/bbs.toml")).unwrap();
-        let mut user: toml::Value = toml::from_str(
-            r#"
-config_version = 1
-
-[[sites]]
-id = "custom"
-name = "カスタムBBS"
-"#,
-        )
-        .unwrap();
-
-        migrate_bbs_value(&mut user, &bundled, 123).expect("BBS migration should succeed");
-
-        assert_eq!(user["config_version"].as_integer(), Some(2));
-        assert_eq!(user["sites"][0]["max_posts"].as_integer(), Some(123));
     }
 
     #[test]

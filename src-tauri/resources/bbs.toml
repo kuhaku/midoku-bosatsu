@@ -1,5 +1,5 @@
 # 未読菩薩 (Midoku Bosatsu) - 掲示板設定
-config_version = 2
+config_version = 1
 
 # -----------------------------------------------------------------------------
 # あやしいわーるど＠みさお
@@ -10,7 +10,6 @@ name = "あやしいわーるど＠みさお"
 enabled = true
 encoding = "shift_jis"
 user_agent = "Midoku Bosatsu"
-max_posts = 666
 timezone_offset_minutes = 540
 timezone_region = "日本"
 [sites.badge_style]
@@ -51,7 +50,6 @@ name = "あやしいわーるど＠本店退避"
 enabled = true
 encoding = "shift_jis"
 user_agent = "Midoku Bosatsu"
-max_posts = 666
 timezone_offset_minutes = 540
 timezone_region = "日本"
 [sites.badge_style]
@@ -92,7 +90,6 @@ name = "あやしいわーるど＠おこめ.暫暫定"
 enabled = true
 encoding = "utf-8"
 user_agent = "Midoku Bosatsu"
-max_posts = 666
 timezone_offset_minutes = 540
 timezone_region = "日本"
 [sites.badge_style]

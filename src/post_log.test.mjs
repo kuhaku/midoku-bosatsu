@@ -31,8 +31,8 @@ test('投稿ログは保存済み投稿を復元し、壊れた値は空とし�
   assert.deepEqual(postLog.parsePostLog(JSON.stringify([{ site_id: 'misao', id: '100', posted_at: null }])), []);
 });
 
-test('投稿ログはBBSごとに最新日時順で上限件数だけを保持する', () => {
-  assert.ok(postLog, 'BBSごとの投稿ログ上限処理モジュールが必要です');
+test('投稿ログは全BBSを合わせて最新日時順で上限件数だけを保持する', () => {
+  assert.ok(postLog, '共通の投稿ログ上限処理モジュールが必要です');
 
   const misaoOlder = post('1', '2026-08-26T10:00:00Z');
   const misaoNewest = post('3', '2026-08-26T12:00:00Z');
@@ -43,7 +43,7 @@ test('投稿ログはBBSごとに最新日時順で上限件数だけを保持�
   assert.deepEqual(
     postLog.limitPostLog(
       [misaoOlder, misaoNewest, misaoMiddle, hontenOlder, hontenNewest],
-      { misao: 2, honten: 1 },
+      3,
     ),
     [misaoNewest, hontenNewest, misaoMiddle],
   );
@@ -63,7 +63,7 @@ test('投稿ログは上限整理後の内容だけを保存し、リセット�
     post('2', '2026-08-26T11:00:00Z'),
   ];
 
-  postLog.savePostLog(storage, 'post-log', posts, { misao: 1 });
+  postLog.savePostLog(storage, 'post-log', posts, 1);
   assert.deepEqual(postLog.parsePostLog(storage.getItem('post-log')), [posts[1]]);
 
   postLog.clearPostLog(storage, 'post-log');

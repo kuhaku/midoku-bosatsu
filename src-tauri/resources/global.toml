@@ -2,11 +2,12 @@
 # フォント設定は global.toml には置かず、reader-style.css で管理します。
 # 一般設定GUIから変更した場合も reader-style.css のCSS変数へ保存されます。
 
-config_version = 4
+config_version = 3
 
 [global]
 # BBSへの過剰な負荷を避けるため30秒以上を推奨。実行時も最低30秒に制限する。
 poll_interval_seconds = 90
+max_posts = 666
 post_saving_enabled = true
 # newest_first: 新しい投稿を上 / oldest_first: 古い投稿を上
 post_order = "newest_first"

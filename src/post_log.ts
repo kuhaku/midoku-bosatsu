@@ -58,32 +58,23 @@ export function parsePostLog<T extends StoredPost = StoredPost>(raw: string | nu
   }
 }
 
-export function limitPostLog<T extends StoredPost>(posts: T[], maxPostsBySite: Record<string, number>): T[] {
-  const remainingBySite = new Map<string, number>();
-  for (const [siteId, maxPosts] of Object.entries(maxPostsBySite)) {
-    remainingBySite.set(siteId, Number.isInteger(maxPosts) && maxPosts > 0 ? maxPosts : 1);
-  }
-
+export function limitPostLog<T extends StoredPost>(posts: T[], maxPosts: number): T[] {
+  const limit = Number.isInteger(maxPosts) && maxPosts > 0 ? maxPosts : 1;
   return [...posts]
     .sort((a, b) => {
       const timeDiff = timestampOf(b) - timestampOf(a);
       return timeDiff !== 0 ? timeDiff : postKey(b).localeCompare(postKey(a), 'ja');
     })
-    .filter((post) => {
-      const remaining = remainingBySite.get(post.site_id) ?? 1;
-      if (remaining < 1) return false;
-      remainingBySite.set(post.site_id, remaining - 1);
-      return true;
-    });
+    .slice(0, limit);
 }
 
 export function savePostLog<T extends StoredPost>(
   storage: PostLogStorage,
   storageKey: string,
   posts: T[],
-  maxPostsBySite: Record<string, number>,
+  maxPosts: number,
 ): T[] {
-  const limited = limitPostLog(posts, maxPostsBySite);
+  const limited = limitPostLog(posts, maxPosts);
   storage.setItem(storageKey, JSON.stringify(limited));
   return limited;
 }

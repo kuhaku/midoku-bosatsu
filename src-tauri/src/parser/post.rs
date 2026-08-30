@@ -491,7 +491,6 @@ mod tests {
             enabled: true,
             encoding: "shift_jis".into(),
             user_agent: "test".into(),
-            max_posts: 666,
             timezone_offset_minutes: 540,
             timezone_region: "東京".to_string(),
             badge_style: Default::default(),
