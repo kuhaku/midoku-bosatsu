@@ -680,7 +680,7 @@ button:disabled { cursor: default; opacity: .45; }
 }
 
 .youtube-preview {
-  max-width: min(100%, 680px);
+  max-width: min(60%, 408px);
   margin: 10px 0 2px 2em;
   border: 1px solid var(--post-border-color);
   border-radius: 8px;

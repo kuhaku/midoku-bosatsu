@@ -51,3 +51,11 @@ test('YouTubeプレビューの下余白を詰める', async () => {
 
   assert.match(cardRule, /margin:\s*10px\s+0\s+2px\s+2em;/u);
 });
+
+test('YouTubeプレビューは従来の60%の最大幅で表示する', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const cardRule = style.match(/\.youtube-preview\s*\{[^}]*\}/u)?.[0] ?? '';
+
+  assert.match(cardRule, /max-width:\s*min\(60%,\s*408px\);/u);
+});
