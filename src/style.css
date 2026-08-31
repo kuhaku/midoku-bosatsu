@@ -636,7 +636,7 @@ button:disabled { cursor: default; opacity: .45; }
   display: grid;
   gap: 8px;
   max-width: min(100%, 680px);
-  margin: 10px 0 10px 2em;
+  margin: 10px 0 2px 2em;
   border: 1px solid var(--post-border-color);
   border-radius: 8px;
   background: var(--color-panel-strong);
@@ -678,6 +678,23 @@ button:disabled { cursor: default; opacity: .45; }
 .fxtwitter-preview-photo {
   margin: 0;
 }
+
+.youtube-preview {
+  max-width: min(100%, 680px);
+  margin: 10px 0 2px 2em;
+  border: 1px solid var(--post-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-panel-strong);
+}
+
+.youtube-preview-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}
+
 .post-image:hover {
   border-color: var(--post-link-hover-color);
 }

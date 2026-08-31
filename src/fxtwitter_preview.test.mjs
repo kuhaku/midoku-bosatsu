@@ -95,10 +95,10 @@ test('FxTwitterカードはユーザー名と本文URLを外部リンクにす�
   assert.match(main, /parseFxTwitterPreviewTextLinks\(value\)/u);
 });
 
-test('FxTwitterカードは左に3文字分の余白を置く', async () => {
+test('FxTwitterカードは左に3文字分の余白を置き、下余白を詰める', async () => {
   const { readFile } = await import('node:fs/promises');
   const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
   const cardRule = style.match(/\.fxtwitter-preview\s*\{[^}]*\}/u)?.[0] ?? '';
 
-  assert.match(cardRule, /margin:\s*10px\s+0\s+10px\s+2em;/u);
+  assert.match(cardRule, /margin:\s*10px\s+0\s+2px\s+2em;/u);
 });

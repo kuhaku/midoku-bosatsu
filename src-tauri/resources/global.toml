@@ -20,6 +20,9 @@ show_post_images = true
 # 外部サービスへの通信を伴うため、初期値はOFF。
 show_fxtwitter_previews = false
 
+# YouTubeの動画リンクを埋め込みプレーヤーとして表示する。初期値はOFF。
+show_youtube_previews = false
+
 # trueなら画像URLの左に [詳] を表示し、「詳」からGoogleレンズを開く。
 show_image_detail_link = true
 # 大きな画像がタイムラインを占有しすぎないための表示上限。

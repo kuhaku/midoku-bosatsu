@@ -82,6 +82,7 @@ import {
   truncateFxTwitterPreviewText,
   type FxTwitterPreview,
 } from './fxtwitter_preview.ts';
+import { parseYouTubeVideoUrl } from './youtube_preview.ts';
 
 type GlobalConfig = {
   poll_interval_seconds: number;
@@ -89,6 +90,7 @@ type GlobalConfig = {
   post_order: 'newest_first' | 'oldest_first' | string;
   show_post_images: boolean;
   show_fxtwitter_previews: boolean;
+  show_youtube_previews: boolean;
   show_image_detail_link: boolean;
   max_image_height_px: number;
   image_hover_window_percent: number;
@@ -629,6 +631,10 @@ app.innerHTML = `
               <label class="settings-check settings-check-card">
                 <input id="general-show-fxtwitter-previews" type="checkbox"> Twitter (X) のリンクをプレビュー表示する
                 <small>ONにするとFxTwitterを使ってプレビュー表示します。</small>
+              </label>
+              <label class="settings-check settings-check-card">
+                <input id="general-show-youtube-previews" type="checkbox"> YouTubeリンクをプレビュー表示する
+                <small>ONにすると投稿内のYouTube動画を埋め込み表示します。</small>
               </label>
               <label class="settings-check settings-check-card">
                 <input id="general-show-image-detail" type="checkbox"> 詳希(;ﾟДﾟ)
@@ -1236,6 +1242,7 @@ const generalHideTreeLinkInput = mustElement<HTMLInputElement>('#general-hide-tr
 const generalHideThreadHideLinkInput = mustElement<HTMLInputElement>('#general-hide-thread-hide-link');
 const generalShowImagesInput = mustElement<HTMLInputElement>('#general-show-images');
 const generalShowFxTwitterPreviewsInput = mustElement<HTMLInputElement>('#general-show-fxtwitter-previews');
+const generalShowYouTubePreviewsInput = mustElement<HTMLInputElement>('#general-show-youtube-previews');
 const generalImageSizeSettings = mustElement<HTMLDivElement>('#general-image-size-settings');
 const generalExpandNumericCharacterReferencesInput = mustElement<HTMLInputElement>('#general-expand-numeric-character-references');
 const generalShowImageDetailInput = mustElement<HTMLInputElement>('#general-show-image-detail');
@@ -2203,6 +2210,30 @@ function appendFxTwitterPreviews(body: HTMLElement): void {
   }
 }
 
+function appendYouTubePreviews(body: HTMLElement): void {
+  if (!(config?.global.show_youtube_previews ?? false)) return;
+
+  const seenVideoIds = new Set<string>();
+  for (const link of Array.from(body.querySelectorAll<HTMLAnchorElement>('a[data-external-url]'))) {
+    const reference = parseYouTubeVideoUrl(link.href);
+    if (!reference || seenVideoIds.has(reference.id)) continue;
+    seenVideoIds.add(reference.id);
+
+    const preview = document.createElement('section');
+    preview.className = 'youtube-preview post-copy-exclusion';
+    const frame = document.createElement('iframe');
+    frame.className = 'youtube-preview-frame';
+    frame.src = `https://www.youtube-nocookie.com/embed/${reference.id}`;
+    frame.title = 'YouTube動画プレビュー';
+    frame.loading = 'lazy';
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
+    frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    frame.allowFullscreen = true;
+    preview.append(frame);
+    link.after(preview);
+  }
+}
+
 const droppedHtmlTags = new Set([
   'SCRIPT',
   'STYLE',
@@ -2412,6 +2443,7 @@ function buildSafePostBody(post: ParsedPost, compactTreeQuotes = false): HTMLEle
   if (compactTreeQuotes) compactTreeQuotedArea(body);
   applyHighlightToTextNodes(body, highlightBodyRegex);
   appendFxTwitterPreviews(body);
+  appendYouTubePreviews(body);
   return body;
 }
 
@@ -4671,6 +4703,7 @@ function renderGeneralSettingsForm(): void {
   generalHideThreadHideLinkInput.checked = !(generalDraftGlobal.hide_thread_hide_link ?? false);
   generalShowImagesInput.checked = generalDraftGlobal.show_post_images;
   generalShowFxTwitterPreviewsInput.checked = generalDraftGlobal.show_fxtwitter_previews ?? false;
+  generalShowYouTubePreviewsInput.checked = generalDraftGlobal.show_youtube_previews ?? false;
   updateImageSizeSettingsVisibility();
   generalExpandNumericCharacterReferencesInput.checked = generalDraftGlobal.expand_numeric_character_references ?? false;
   generalShowImageDetailInput.checked = generalDraftGlobal.show_image_detail_link;
@@ -4743,6 +4776,7 @@ function commitGeneralSettingsForm(): void {
   generalDraftGlobal.hide_thread_hide_link = !generalHideThreadHideLinkInput.checked;
   generalDraftGlobal.show_post_images = generalShowImagesInput.checked;
   generalDraftGlobal.show_fxtwitter_previews = generalShowFxTwitterPreviewsInput.checked;
+  generalDraftGlobal.show_youtube_previews = generalShowYouTubePreviewsInput.checked;
   updateImageSizeSettingsVisibility();
   generalDraftGlobal.expand_numeric_character_references = generalExpandNumericCharacterReferencesInput.checked;
   generalDraftGlobal.show_image_detail_link = generalShowImageDetailInput.checked;
