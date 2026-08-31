@@ -50,7 +50,7 @@
 以下を実行
 
 ```sh
-xattr -cr /Applications/未読菩薩.app
+xattr -cr /Applications/midoku-bosatsu.app
 ```
 
 #### GUIでやる場合
