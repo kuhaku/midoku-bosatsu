@@ -57,6 +57,13 @@ export function formatUpdateNotes(notes: string | null | undefined): string {
   return `${normalized.slice(0, UPDATE_NOTES_MAX_LENGTH)}…`;
 }
 
+export function formatAppUpdateDate(date: string | undefined): string {
+  if (!date) return '公開日: 不明';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return `公開日: ${date}`;
+  return `公開日: ${new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long' }).format(parsed)}`;
+}
+
 export function createAppUpdateChecker(
   dependencies: AppUpdateDependencies,
 ): () => Promise<void> {
@@ -74,7 +81,7 @@ export function createAppUpdateChecker(
         if (!update) return;
 
         const approved = await dependencies.confirm(
-          `新しいバージョン ${update.version} を利用できます。\n\n${formatUpdateNotes(update.body)}\n\n今すぐ更新して再起動しますか？`,
+          `新しいバージョン ${update.version} を利用できます。\n\n${formatAppUpdateDate(update.date)}\n\n${formatUpdateNotes(update.body)}\n\n今すぐ更新して再起動しますか？`,
         );
         if (!approved) return;
 

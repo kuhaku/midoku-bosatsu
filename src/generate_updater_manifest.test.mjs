@@ -46,6 +46,8 @@ test('updater manifest merges signatures for every updater platform', async () =
 
     const manifest = JSON.parse(await readFile(join(outputDirectory, 'latest.json'), 'utf8'));
     assert.equal(manifest.version, '0.2.0');
+    assert.equal(typeof manifest.pub_date, 'string');
+    assert.ok(!Number.isNaN(Date.parse(manifest.pub_date)));
     assert.deepEqual(Object.keys(manifest.platforms), [
       'darwin-aarch64',
       'darwin-x86_64',

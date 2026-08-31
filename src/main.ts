@@ -7,6 +7,7 @@ import {
   checkForAppUpdate,
   checkForManualAppUpdate,
   createStartupUpdateSequence,
+  formatAppUpdateDate,
   installAppUpdate,
   type AppUpdate,
 } from './app_updates.ts';
@@ -1181,13 +1182,6 @@ void showAppVersion();
 function showAppUpdateStatus(message: string, error = false): void {
   appUpdateStatus.textContent = message;
   appUpdateStatus.classList.toggle('settings-message-error', error);
-}
-
-function formatAppUpdateDate(date: string | undefined): string {
-  if (!date) return '公開日: 不明';
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return `公開日: ${date}`;
-  return `公開日: ${new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long' }).format(parsed)}`;
 }
 
 async function checkForManualUpdate(): Promise<void> {

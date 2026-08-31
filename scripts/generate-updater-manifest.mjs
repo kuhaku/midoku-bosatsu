@@ -69,5 +69,6 @@ const platforms = Object.fromEntries(await Promise.all(updaterArtifacts.map(asyn
 
 await writeFile(join(outputDirectory, 'latest.json'), `${JSON.stringify({
   version: GITHUB_REF_NAME.slice('app-v'.length),
+  pub_date: new Date().toISOString(),
   platforms,
 }, null, 2)}\n`);

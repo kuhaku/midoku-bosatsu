@@ -114,6 +114,7 @@ test('更新がある場合はバージョンとリリースノートを確認�
   const checker = createAppUpdateChecker({
     check: async () => ({
       version: '0.2.0',
+      date: '2026-08-30T00:00:00Z',
       body: '重要な修正です。',
       download: async () => {},
       install: async () => {},
@@ -131,6 +132,7 @@ test('更新がある場合はバージョンとリリースノートを確認�
 
   assert.equal(messages.length, 1);
   assert.match(messages[0], /0\.2\.0/);
+  assert.match(messages[0], /公開日: 2026年8月30日/);
   assert.match(messages[0], /重要な修正です。/);
 });
 
