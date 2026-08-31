@@ -23,9 +23,27 @@ test('一般設定のメディア表示を画像表示とSNS表示に分ける',
   assert.ok(snsSubsection, 'SNS表示サブセクションが見つかりません');
   assert.match(snsSubsection, /Twitter \(X\) のリンクをプレビュー表示する/u);
   assert.match(snsSubsection, /YouTubeリンクをプレビュー表示する/u);
+  assert.match(snsSubsection, /Twitter \(X\) の動画の静止画サムネイルサイズ \(px\)/u);
+  assert.match(snsSubsection, /id="general-fxtwitter-video-thumbnail-size"/u);
+  assert.match(snsSubsection, /YouTubeの動画の静止画サムネイルサイズ \(px\)/u);
+  assert.match(snsSubsection, /id="general-youtube-video-thumbnail-size"/u);
+  assert.match(snsSubsection, /id="general-fxtwitter-video-thumbnail-size-settings"/u);
+  assert.match(snsSubsection, /id="general-youtube-video-thumbnail-size-settings"/u);
+
+  assert.match(mainSource, /fxtwitter_video_thumbnail_size_px: number;/u);
+  assert.match(mainSource, /youtube_video_thumbnail_size_px: number;/u);
+  assert.match(mainSource, /generalDraftGlobal\.fxtwitter_video_thumbnail_size_px/u);
+  assert.match(mainSource, /generalDraftGlobal\.youtube_video_thumbnail_size_px/u);
+  assert.match(styleSource, /--fxtwitter-video-thumbnail-size-px/u);
+  assert.match(styleSource, /--youtube-video-thumbnail-size-px/u);
+  assert.match(styleSource, /\.fxtwitter-preview-video-thumbnail\s*\{[^}]*max-width:\s*min\(100%, var\(--fxtwitter-video-thumbnail-size-px\)\)[^}]*max-height:\s*var\(--fxtwitter-video-thumbnail-size-px\)/u);
+  assert.match(styleSource, /\.youtube-preview-thumbnail\s*\{[^}]*max-width:\s*min\(100%, var\(--youtube-video-thumbnail-size-px\)\)[^}]*max-height:\s*var\(--youtube-video-thumbnail-size-px\)/u);
 
   assert.match(mainSource, /generalImageSizeSettings\.hidden\s*=\s*!generalShowImagesInput\.checked/u);
+  assert.match(mainSource, /generalFxTwitterVideoThumbnailSizeSettings\.hidden\s*=\s*!generalShowFxTwitterPreviewsInput\.checked/u);
+  assert.match(mainSource, /generalYouTubeVideoThumbnailSizeSettings\.hidden\s*=\s*!generalShowYouTubePreviewsInput\.checked/u);
   assert.match(styleSource, /#general-image-size-settings\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/u);
+  assert.match(styleSource, /#general-fxtwitter-video-thumbnail-size-settings\[hidden\],\s*#general-youtube-video-thumbnail-size-settings\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/u);
 
   const timelineSection = mainSource.match(/<h3>基本的な設定<\/h3>[\s\S]*?<\/details>/u)?.[0];
   assert.ok(timelineSection, '投稿表示セクションが見つかりません');

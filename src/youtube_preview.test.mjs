@@ -59,12 +59,21 @@ test('YouTubeプレビューの下余白を詰める', async () => {
   const cardRule = style.match(/\.youtube-preview\s*\{[^}]*\}/u)?.[0] ?? '';
 
   assert.match(cardRule, /margin:\s*10px\s+0\s+2px\s+2em;/u);
+  assert.match(cardRule, /display:\s*block;/u);
 });
 
-test('YouTubeプレビューは従来の60%の最大幅で表示する', async () => {
+test('YouTubeプレビューはコピー対象から除外する', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+  assert.match(main, /preview\.className\s*=\s*'youtube-preview post-copy-exclusion';/u);
+});
+
+test('YouTubeプレビューは動画サムネイル共通サイズを縦横の最大値に使う', async () => {
   const { readFile } = await import('node:fs/promises');
   const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
-  const cardRule = style.match(/\.youtube-preview\s*\{[^}]*\}/u)?.[0] ?? '';
+  const thumbnailRule = style.match(/\.youtube-preview-thumbnail\s*\{[^}]*\}/u)?.[0] ?? '';
 
-  assert.match(cardRule, /max-width:\s*min\(60%,\s*408px\);/u);
+  assert.match(thumbnailRule, /max-width:\s*min\(100%,\s*var\(--youtube-video-thumbnail-size-px\)\);/u);
+  assert.match(thumbnailRule, /max-height:\s*var\(--youtube-video-thumbnail-size-px\);/u);
 });

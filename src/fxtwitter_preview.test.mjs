@@ -115,11 +115,11 @@ test('FxTwitterカードは左に3文字分の余白を置き、下余白を詰�
   assert.match(cardRule, /margin:\s*10px\s+0\s+2px\s+2em;/u);
 });
 
-test('FxTwitter動画サムネイルは画像サムネイルの高さ制限を受けない', async () => {
+test('FxTwitter動画サムネイルは共通サイズを高さの上限に使う', async () => {
   const { readFile } = await import('node:fs/promises');
   const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
   const videoRule = style.match(/\.fxtwitter-preview-video-thumbnail\s*\{[^}]*\}/u)?.[0] ?? '';
 
-  assert.match(videoRule, /max-height:\s*70vh;/u);
+  assert.match(videoRule, /max-height:\s*var\(--fxtwitter-video-thumbnail-size-px\);/u);
   assert.doesNotMatch(videoRule, /reader-image-max-height/u);
 });

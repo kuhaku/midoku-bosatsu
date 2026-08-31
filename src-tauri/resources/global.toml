@@ -2,7 +2,7 @@
 # フォント設定は global.toml には置かず、reader-style.css で管理します。
 # 一般設定GUIから変更した場合も reader-style.css のCSS変数へ保存されます。
 
-config_version = 3
+config_version = 5
 
 [global]
 # BBSへの過剰な負荷を避けるため30秒以上を推奨。実行時も最低30秒に制限する。
@@ -22,6 +22,10 @@ show_fxtwitter_previews = false
 
 # YouTubeの動画リンクを埋め込みプレーヤーとして表示する。初期値はOFF。
 show_youtube_previews = false
+
+# XとYouTubeの動画の静止画サムネイルに個別に使う最大サイズ。
+fxtwitter_video_thumbnail_size_px = 200
+youtube_video_thumbnail_size_px = 400
 
 # trueなら画像URLの左に [詳] を表示し、「詳」からGoogleレンズを開く。
 show_image_detail_link = true

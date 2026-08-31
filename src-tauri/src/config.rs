@@ -28,6 +28,10 @@ pub struct GlobalConfig {
     pub show_fxtwitter_previews: bool,
     #[serde(default)]
     pub show_youtube_previews: bool,
+    #[serde(default = "default_fxtwitter_video_thumbnail_size_px")]
+    pub fxtwitter_video_thumbnail_size_px: u16,
+    #[serde(default = "default_youtube_video_thumbnail_size_px")]
+    pub youtube_video_thumbnail_size_px: u16,
     #[serde(default = "default_show_image_detail_link")]
     pub show_image_detail_link: bool,
     #[serde(default = "default_max_image_height_px")]
@@ -258,6 +262,12 @@ fn default_viewing_mode_interval_seconds() -> u64 {
 fn default_max_image_height_px() -> u16 {
     40
 }
+fn default_fxtwitter_video_thumbnail_size_px() -> u16 {
+    200
+}
+fn default_youtube_video_thumbnail_size_px() -> u16 {
+    400
+}
 fn default_image_hover_window_percent() -> u8 {
     90
 }
@@ -463,6 +473,14 @@ fn migrate_global_value(user: &mut toml::Value, bundled: &toml::Value) -> Result
             "reply_notification_enabled".to_string(),
             toml::Value::Boolean(legacy_enabled),
         );
+    }
+
+    if user_version < 5 {
+        if let Some(common_size) = user_global.remove("video_thumbnail_size_px") {
+            user_global
+                .entry("youtube_video_thumbnail_size_px".to_string())
+                .or_insert(common_size);
+        }
     }
 
     for (key, value) in bundled_global {
@@ -718,6 +736,12 @@ pub(crate) fn validate_global_config(global: &GlobalConfig) -> Result<(), String
     }
     if global.max_image_height_px == 0 {
         return Err("max_image_height_px は1以上にしてください".to_string());
+    }
+    if global.fxtwitter_video_thumbnail_size_px == 0 {
+        return Err("fxtwitter_video_thumbnail_size_px は1以上にしてください".to_string());
+    }
+    if global.youtube_video_thumbnail_size_px == 0 {
+        return Err("youtube_video_thumbnail_size_px は1以上にしてください".to_string());
     }
     if !(1..=100).contains(&global.image_hover_window_percent) {
         return Err("image_hover_window_percent は1〜100で指定してください".to_string());

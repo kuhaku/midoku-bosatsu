@@ -97,6 +97,8 @@ type GlobalConfig = {
   show_post_images: boolean;
   show_fxtwitter_previews: boolean;
   show_youtube_previews: boolean;
+  fxtwitter_video_thumbnail_size_px: number;
+  youtube_video_thumbnail_size_px: number;
   show_image_detail_link: boolean;
   max_image_height_px: number;
   image_hover_window_percent: number;
@@ -664,6 +666,18 @@ app.innerHTML = `
                     <input id="general-show-youtube-previews" type="checkbox"> YouTubeリンクをプレビュー表示する
                     <small>ONにすると投稿内のYouTube動画を埋め込み表示します。</small>
                   </label>
+                  <div id="general-fxtwitter-video-thumbnail-size-settings">
+                    <label>Twitter (X) の動画の静止画サムネイルサイズ (px)
+                      <input id="general-fxtwitter-video-thumbnail-size" type="number" min="1" max="10000" step="1">
+                      <small>横と高さのうち大きい方を制限します。初期値は200pxです。</small>
+                    </label>
+                  </div>
+                  <div id="general-youtube-video-thumbnail-size-settings">
+                    <label>YouTubeの動画の静止画サムネイルサイズ (px)
+                      <input id="general-youtube-video-thumbnail-size" type="number" min="1" max="10000" step="1">
+                      <small>横と高さのうち大きい方を制限します。初期値は400pxです。</small>
+                    </label>
+                  </div>
                 </div>
               </section>
             </div>
@@ -1259,7 +1273,11 @@ const generalHideThreadHideLinkInput = mustElement<HTMLInputElement>('#general-h
 const generalShowImagesInput = mustElement<HTMLInputElement>('#general-show-images');
 const generalShowFxTwitterPreviewsInput = mustElement<HTMLInputElement>('#general-show-fxtwitter-previews');
 const generalShowYouTubePreviewsInput = mustElement<HTMLInputElement>('#general-show-youtube-previews');
+const generalFxTwitterVideoThumbnailSizeInput = mustElement<HTMLInputElement>('#general-fxtwitter-video-thumbnail-size');
+const generalYouTubeVideoThumbnailSizeInput = mustElement<HTMLInputElement>('#general-youtube-video-thumbnail-size');
 const generalImageSizeSettings = mustElement<HTMLDivElement>('#general-image-size-settings');
+const generalFxTwitterVideoThumbnailSizeSettings = mustElement<HTMLDivElement>('#general-fxtwitter-video-thumbnail-size-settings');
+const generalYouTubeVideoThumbnailSizeSettings = mustElement<HTMLDivElement>('#general-youtube-video-thumbnail-size-settings');
 const generalExpandNumericCharacterReferencesInput = mustElement<HTMLInputElement>('#general-expand-numeric-character-references');
 const generalShowImageDetailInput = mustElement<HTMLInputElement>('#general-show-image-detail');
 const generalImageMaxHeightInput = mustElement<HTMLInputElement>('#general-image-max-height');
@@ -4489,6 +4507,8 @@ function applyDisplayConfig(globalConfig: GlobalConfig): void {
   root.setProperty('--reader-image-max-height', `${globalConfig.max_image_height_px}px`);
   root.setProperty('--reader-image-hover-max-width', `${globalConfig.image_hover_window_percent}vw`);
   root.setProperty('--reader-image-hover-max-height', `${globalConfig.image_hover_window_percent}vh`);
+  root.setProperty('--fxtwitter-video-thumbnail-size-px', `${globalConfig.fxtwitter_video_thumbnail_size_px}px`);
+  root.setProperty('--youtube-video-thumbnail-size-px', `${globalConfig.youtube_video_thumbnail_size_px}px`);
   refreshNgWordRegex(globalConfig);
   refreshHighlightRegex(globalConfig);
   const enabled = globalConfig.post_saving_enabled ?? true;
@@ -4762,7 +4782,10 @@ function renderGeneralSettingsForm(): void {
   generalShowImagesInput.checked = generalDraftGlobal.show_post_images;
   generalShowFxTwitterPreviewsInput.checked = generalDraftGlobal.show_fxtwitter_previews ?? false;
   generalShowYouTubePreviewsInput.checked = generalDraftGlobal.show_youtube_previews ?? false;
+  generalFxTwitterVideoThumbnailSizeInput.value = String(generalDraftGlobal.fxtwitter_video_thumbnail_size_px ?? 200);
+  generalYouTubeVideoThumbnailSizeInput.value = String(generalDraftGlobal.youtube_video_thumbnail_size_px ?? 400);
   updateImageSizeSettingsVisibility();
+  updateVideoThumbnailSizeSettingsVisibility();
   generalExpandNumericCharacterReferencesInput.checked = generalDraftGlobal.expand_numeric_character_references ?? false;
   generalShowImageDetailInput.checked = generalDraftGlobal.show_image_detail_link;
   generalImageMaxHeightInput.value = String(generalDraftGlobal.max_image_height_px);
@@ -4800,6 +4823,11 @@ function updateImageSizeSettingsVisibility(): void {
   generalImageSizeSettings.hidden = !generalShowImagesInput.checked;
 }
 
+function updateVideoThumbnailSizeSettingsVisibility(): void {
+  generalFxTwitterVideoThumbnailSizeSettings.hidden = !generalShowFxTwitterPreviewsInput.checked;
+  generalYouTubeVideoThumbnailSizeSettings.hidden = !generalShowYouTubePreviewsInput.checked;
+}
+
 function updateReplyNotificationOptionsVisibility(): void {
   generalReplyNotificationOptions.hidden = !generalReplyNotificationEnabledInput.checked;
 }
@@ -4835,7 +4863,12 @@ function commitGeneralSettingsForm(): void {
   generalDraftGlobal.show_post_images = generalShowImagesInput.checked;
   generalDraftGlobal.show_fxtwitter_previews = generalShowFxTwitterPreviewsInput.checked;
   generalDraftGlobal.show_youtube_previews = generalShowYouTubePreviewsInput.checked;
+  const fxtwitterVideoThumbnailSize = Number.parseInt(generalFxTwitterVideoThumbnailSizeInput.value, 10);
+  if (Number.isFinite(fxtwitterVideoThumbnailSize)) generalDraftGlobal.fxtwitter_video_thumbnail_size_px = fxtwitterVideoThumbnailSize;
+  const youtubeVideoThumbnailSize = Number.parseInt(generalYouTubeVideoThumbnailSizeInput.value, 10);
+  if (Number.isFinite(youtubeVideoThumbnailSize)) generalDraftGlobal.youtube_video_thumbnail_size_px = youtubeVideoThumbnailSize;
   updateImageSizeSettingsVisibility();
+  updateVideoThumbnailSizeSettingsVisibility();
   generalDraftGlobal.expand_numeric_character_references = generalExpandNumericCharacterReferencesInput.checked;
   generalDraftGlobal.show_image_detail_link = generalShowImageDetailInput.checked;
   const imageMaxHeight = Number.parseInt(generalImageMaxHeightInput.value, 10);
@@ -4885,6 +4918,15 @@ function previewGeneralStyleSettings(): void {
   if (Number.isFinite(imageHoverWindowPercent) && imageHoverWindowPercent >= 1 && imageHoverWindowPercent <= 100) {
     root.setProperty('--reader-image-hover-max-width', `${imageHoverWindowPercent}vw`);
     root.setProperty('--reader-image-hover-max-height', `${imageHoverWindowPercent}vh`);
+  }
+
+  const fxtwitterVideoThumbnailSize = Number.parseInt(generalFxTwitterVideoThumbnailSizeInput.value, 10);
+  if (Number.isFinite(fxtwitterVideoThumbnailSize) && fxtwitterVideoThumbnailSize >= 1 && fxtwitterVideoThumbnailSize <= 10000) {
+    root.setProperty('--fxtwitter-video-thumbnail-size-px', `${fxtwitterVideoThumbnailSize}px`);
+  }
+  const youtubeVideoThumbnailSize = Number.parseInt(generalYouTubeVideoThumbnailSizeInput.value, 10);
+  if (Number.isFinite(youtubeVideoThumbnailSize) && youtubeVideoThumbnailSize >= 1 && youtubeVideoThumbnailSize <= 10000) {
+    root.setProperty('--youtube-video-thumbnail-size-px', `${youtubeVideoThumbnailSize}px`);
   }
 
   const currentPostBorderColor = generalCurrentPostBorderColorInput.value.trim();
