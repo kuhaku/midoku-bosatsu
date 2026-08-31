@@ -5963,6 +5963,7 @@ savedPostsViewCloseButton.addEventListener('click', closeSavedPostsView);
 savedPostsView.addEventListener('click', (event) => {
   if (event.target === savedPostsView) closeSavedPostsView();
 });
+savedPostsViewContent.addEventListener('click', handlePostContentClick);
 savedPostsViewContent.addEventListener('contextmenu', openPostContextMenu);
 document.addEventListener('click', (event) => {
   if (event.target instanceof Node && !postContextMenu.contains(event.target)) closePostContextMenu();

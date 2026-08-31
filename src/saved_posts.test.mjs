@@ -131,6 +131,15 @@ test('保存済み投稿のツリーには上下の区切り線を表示する',
   );
 });
 
+test('保存済み投稿一覧の木リンクはアプリ内のツリー表示として開く', async () => {
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+  assert.match(
+    main,
+    /savedPostsViewContent\.addEventListener\('click', handlePostContentClick\)/u,
+  );
+});
+
 test('投稿の保存済み状態は掲示板IDと投稿IDの組み合わせで判定する', () => {
   assert.ok(savedPosts, '保存済み投稿モジュールが必要です');
   const entries = [{ ...post('100'), saved_at: '2026-08-26T12:00:00Z' }];
