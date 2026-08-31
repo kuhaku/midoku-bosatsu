@@ -83,7 +83,7 @@ import {
   truncateFxTwitterPreviewText,
   type FxTwitterPreview,
 } from './fxtwitter_preview.ts';
-import { parseYouTubeVideoUrl } from './youtube_preview.ts';
+import { buildYouTubeThumbnailUrl, parseYouTubeVideoUrl } from './youtube_preview.ts';
 
 type GlobalConfig = {
   poll_interval_seconds: number;
@@ -2232,15 +2232,23 @@ function appendYouTubePreviews(body: HTMLElement): void {
 
     const preview = document.createElement('section');
     preview.className = 'youtube-preview post-copy-exclusion';
-    const frame = document.createElement('iframe');
-    frame.className = 'youtube-preview-frame';
-    frame.src = `https://www.youtube-nocookie.com/embed/${reference.id}`;
-    frame.title = 'YouTube動画プレビュー';
-    frame.loading = 'lazy';
-    frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-    frame.allowFullscreen = true;
-    preview.append(frame);
+    const playLink = document.createElement('a');
+    playLink.className = 'youtube-preview-link';
+    playLink.href = reference.url;
+    playLink.dataset.externalUrl = reference.url;
+    playLink.title = 'YouTubeで動画を再生';
+    const thumbnail = document.createElement('img');
+    thumbnail.className = 'youtube-preview-thumbnail';
+    thumbnail.src = buildYouTubeThumbnailUrl(reference.id);
+    thumbnail.alt = 'YouTube動画のサムネイル';
+    thumbnail.loading = 'lazy';
+    thumbnail.decoding = 'async';
+    thumbnail.referrerPolicy = 'no-referrer';
+    const label = document.createElement('span');
+    label.className = 'youtube-preview-play-label';
+    label.textContent = 'YouTubeで再生';
+    playLink.append(thumbnail, label);
+    preview.append(playLink);
     link.after(preview);
   }
 }

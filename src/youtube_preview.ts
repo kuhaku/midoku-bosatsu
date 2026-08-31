@@ -12,6 +12,10 @@ const YOUTUBE_HOSTS = new Set([
 const YOUTUBE_SHORT_HOST = 'youtu.be';
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 
+export function buildYouTubeThumbnailUrl(videoId: string): string {
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
 export function parseYouTubeVideoUrl(rawUrl: string): YouTubeVideoReference | null {
   let url: URL;
   try {

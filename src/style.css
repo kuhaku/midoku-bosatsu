@@ -688,11 +688,28 @@ button:disabled { cursor: default; opacity: .45; }
   background: var(--color-panel-strong);
 }
 
-.youtube-preview-frame {
+.youtube-preview-link {
+  display: block;
+  position: relative;
+  color: inherit;
+}
+
+.youtube-preview-thumbnail {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border: 0;
+  object-fit: cover;
+}
+
+.youtube-preview-play-label {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: #fff;
+  background: rgb(0 0 0 / 75%);
+  font-weight: 700;
 }
 
 .post-image:hover {

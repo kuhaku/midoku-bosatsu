@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYouTubeVideoUrl } from './youtube_preview.ts';
+import { buildYouTubeThumbnailUrl, parseYouTubeVideoUrl } from './youtube_preview.ts';
 
 test('YouTube動画URLから埋め込み対象の動画IDを識別する', () => {
   assert.deepEqual(
@@ -22,6 +22,13 @@ test('動画ではないURLや不正な動画IDはYouTubeプレビュー対象�
   assert.equal(parseYouTubeVideoUrl('https://www.youtube.com/channel/example'), null);
   assert.equal(parseYouTubeVideoUrl('https://youtu.be/not a valid id'), null);
   assert.equal(parseYouTubeVideoUrl('not a URL'), null);
+});
+
+test('動画プレビュー用のサムネイルURLを生成する', () => {
+  assert.equal(
+    buildYouTubeThumbnailUrl('dQw4w9WgXcQ'),
+    'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+  );
 });
 
 test('YouTubeプレビューは設定で無効化でき、初期値はOFFである', async () => {
