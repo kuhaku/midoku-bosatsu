@@ -33,15 +33,27 @@ test('FxTwitterレスポンスからカード表示に必要な安全な値だ�
   assert.deepEqual(normalizeFxTwitterPreview({
     code: 200,
     status: {
-      text: '画像付きの投稿',
+      url: 'https://x.com/example/status/1234567890',
+      text: '画像と動画付きの投稿',
       author: { name: '投稿者', 'screen_name': 'example' },
-      media: { photos: [{ url: 'https://pbs.twimg.com/media/example.jpg' }] },
+      media: {
+        photos: [{ url: 'https://pbs.twimg.com/media/example.jpg' }],
+        videos: [{
+          url: 'https://video.twimg.com/ext_tw_video/example.mp4',
+          thumbnail_url: 'https://pbs.twimg.com/tweet_video_thumb/example.jpg',
+        }],
+      },
     },
   }), {
     authorName: '投稿者',
     authorHandle: 'example',
-    text: '画像付きの投稿',
+    statusUrl: 'https://x.com/example/status/1234567890',
+    text: '画像と動画付きの投稿',
     photoUrls: ['https://pbs.twimg.com/media/example.jpg'],
+    videos: [{
+      url: 'https://video.twimg.com/ext_tw_video/example.mp4',
+      thumbnailUrl: 'https://pbs.twimg.com/tweet_video_thumb/example.jpg',
+    }],
   });
 });
 
@@ -101,4 +113,13 @@ test('FxTwitterカードは左に3文字分の余白を置き、下余白を詰�
   const cardRule = style.match(/\.fxtwitter-preview\s*\{[^}]*\}/u)?.[0] ?? '';
 
   assert.match(cardRule, /margin:\s*10px\s+0\s+2px\s+2em;/u);
+});
+
+test('FxTwitter動画サムネイルは画像サムネイルの高さ制限を受けない', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const videoRule = style.match(/\.fxtwitter-preview-video-thumbnail\s*\{[^}]*\}/u)?.[0] ?? '';
+
+  assert.match(videoRule, /max-height:\s*70vh;/u);
+  assert.doesNotMatch(videoRule, /reader-image-max-height/u);
 });

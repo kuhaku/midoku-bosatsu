@@ -3,11 +3,18 @@ export type FxTwitterStatusReference = {
   url: string;
 };
 
+export type FxTwitterVideo = {
+  url: string;
+  thumbnailUrl: string;
+};
+
 export type FxTwitterPreview = {
   authorName: string;
   authorHandle: string;
+  statusUrl: string;
   text: string;
   photoUrls: string[];
+  videos: FxTwitterVideo[];
 };
 
 const X_HOSTS = new Set(['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com']);
@@ -82,6 +89,9 @@ export function normalizeFxTwitterPreview(payload: unknown): FxTwitterPreview | 
 
   const text = (status as { text?: unknown }).text;
   if (typeof text !== 'string' || !text.trim()) return null;
+  const statusUrl = typeof (status as { url?: unknown }).url === 'string'
+    ? (status as { url: string }).url
+    : '';
 
   const author = (status as { author?: unknown }).author;
   const authorName = author && typeof author === 'object' && typeof (author as { name?: unknown }).name === 'string'
@@ -96,6 +106,17 @@ export function normalizeFxTwitterPreview(payload: unknown): FxTwitterPreview | 
       ? [(photo as { url: string }).url]
       : [])
     : [];
+  const videos = (status as { media?: { videos?: unknown } }).media?.videos;
+  const normalizedVideos = Array.isArray(videos)
+    ? videos.flatMap((video) => video && typeof video === 'object' && typeof (video as { url?: unknown }).url === 'string'
+      ? [{
+        url: (video as { url: string }).url,
+        thumbnailUrl: typeof (video as { thumbnail_url?: unknown }).thumbnail_url === 'string'
+          ? (video as { thumbnail_url: string }).thumbnail_url
+          : '',
+      }]
+      : [])
+    : [];
 
-  return { authorName, authorHandle, text, photoUrls };
+  return { authorName, authorHandle, statusUrl, text, photoUrls, videos: normalizedVideos };
 }
