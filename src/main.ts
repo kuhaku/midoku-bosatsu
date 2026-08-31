@@ -613,7 +613,7 @@ app.innerHTML = `
             <div class="settings-grid">
               <label class="settings-check settings-check-card settings-span-2">
                 <input id="general-tree-view-enabled" type="checkbox"> ツリー表示
-                <small>本文末尾の「参考：…」リンクと「◆」のスレッド情報から親子関係を組み立て、返信を親投稿の下へインデント表示します。初期値はOFFです。</small>
+                <small>常に投稿をツリー表示します。初期値はOFFです。</small>
               </label>
               <div id="tree-color-fields" class="color-settings-grid settings-span-2"></div>
             </div>
@@ -621,35 +621,45 @@ app.innerHTML = `
 
           <details class="settings-section general-image-display-section">
             <summary class="settings-section-heading">
-              <div><h3>画像表示</h3></div>
+              <div><h3>メディア表示</h3></div>
             </summary>
             <div class="settings-grid">
-              <label class="settings-check settings-check-card">
-                <input id="general-show-images" type="checkbox"> 投稿内画像を表示する
-                <small>OFFの場合は画像を読み込まず「画像を開く」リンクだけ表示します。</small>
-              </label>
-              <label class="settings-check settings-check-card">
-                <input id="general-show-fxtwitter-previews" type="checkbox"> Twitter (X) のリンクをプレビュー表示する
-                <small>ONにするとFxTwitterを使ってプレビュー表示します。</small>
-              </label>
-              <label class="settings-check settings-check-card">
-                <input id="general-show-youtube-previews" type="checkbox"> YouTubeリンクをプレビュー表示する
-                <small>ONにすると投稿内のYouTube動画を埋め込み表示します。</small>
-              </label>
-              <label class="settings-check settings-check-card">
-                <input id="general-show-image-detail" type="checkbox"> 詳希(;ﾟДﾟ)
-                <small>画像URLの左に [詳] を表示し、「詳」からGoogleレンズで画像を調べられるようにします。</small>
-              </label>
-              <div id="general-image-size-settings" class="settings-grid settings-span-2">
-                <label>画像サムネイル最大高 (px)
-                  <input id="general-image-max-height" type="number" min="1" max="10000" step="1">
-                  <small>通常時の画像サムネイルの最大高さです。</small>
-                </label>
-                <label>ホバー画像サイズ (ウィンドウ比 %)
-                  <input id="general-image-hover-window-percent" type="number" min="1" max="100" step="1">
-                  <small>画像にマウスを重ねたときの最大サイズです。幅・高さとも未読菩薩のウィンドウサイズに対する割合で制限します。初期値は90%です。</small>
-                </label>
-              </div>
+              <section class="settings-subsection settings-span-2">
+                <h4>画像表示</h4>
+                <div class="settings-grid">
+                  <label class="settings-check settings-check-card">
+                    <input id="general-show-images" type="checkbox"> 画像リンクをプレビュー表示する
+                    <small>OFFの場合は画像を読み込まず「画像を開く」リンクだけ表示します。</small>
+                  </label>
+                  <label class="settings-check settings-check-card">
+                    <input id="general-show-image-detail" type="checkbox"> 詳希(;ﾟДﾟ)
+                    <small>画像URLの左に [詳] を表示し、「詳」からGoogleレンズで画像を調べられるようにします。</small>
+                  </label>
+                  <div id="general-image-size-settings" class="settings-grid settings-span-2">
+                    <label>画像サムネイル最大高 (px)
+                      <input id="general-image-max-height" type="number" min="1" max="10000" step="1">
+                      <small>通常時の画像サムネイルの最大高さです。</small>
+                    </label>
+                    <label>ホバー画像サイズ (ウィンドウ比 %)
+                      <input id="general-image-hover-window-percent" type="number" min="1" max="100" step="1">
+                      <small>画像にマウスを重ねたときの最大サイズです。幅・高さとも未読菩薩のウィンドウサイズに対する割合で制限します。初期値は90%です。</small>
+                    </label>
+                  </div>
+                </div>
+              </section>
+              <section class="settings-subsection settings-span-2">
+                <h4>SNS表示</h4>
+                <div class="settings-grid">
+                  <label class="settings-check settings-check-card">
+                    <input id="general-show-fxtwitter-previews" type="checkbox"> Twitter (X) のリンクをプレビュー表示する
+                    <small>ONにするとFxTwitterを使ってプレビュー表示します。</small>
+                  </label>
+                  <label class="settings-check settings-check-card">
+                    <input id="general-show-youtube-previews" type="checkbox"> YouTubeリンクをプレビュー表示する
+                    <small>ONにすると投稿内のYouTube動画を埋め込み表示します。</small>
+                  </label>
+                </div>
+              </section>
             </div>
           </details>
 
