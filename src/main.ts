@@ -12,6 +12,7 @@ import {
 } from './app_updates.ts';
 import { removeTreeEmptyLines } from './tree_body.ts';
 import { buildTreeBodyPrefix } from './tree_prefix.ts';
+import { buildTreeNodePrefixes } from './tree_layout.ts';
 import { expandNumericCharacterReferences } from './numeric_character_references.ts';
 import {
   notificationButtonMode,
@@ -4030,9 +4031,12 @@ function buildTreeDisplayGroups(posts: ParsedPost[]): TreeDisplayGroup[] {
       visited.add(post.id);
       const descendants = children.get(post.id) ?? [];
       const hasChildren = descendants.length > 0;
-      const ancestorPrefix = ancestorSiblingContinues.map((continues) => continues ? '｜' : '　').join('');
-      const headerPrefix = depth === 0 ? '' : `${ancestorPrefix}${isLastSibling ? '└' : '├'}`;
-      const bodyPrefix = `${ancestorPrefix}${depth === 0 ? '' : (isLastSibling ? '　' : '｜')}${hasChildren ? '｜' : ''}`;
+      const { headerPrefix, bodyPrefix } = buildTreeNodePrefixes({
+        depth,
+        ancestorSiblingContinues,
+        isLastSibling,
+        hasChildren,
+      });
       items.push({ post, depth, headerPrefix, bodyPrefix, hasChildren });
 
       descendants.forEach((child, index) => {
