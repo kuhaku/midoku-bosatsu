@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildYouTubeThumbnailUrl, parseYouTubeVideoUrl } from './youtube_preview.ts';
+import {
+  buildYouTubeThumbnailUrl,
+  parseYouTubeVideoUrl,
+  truncateYouTubePreviewTitle,
+} from './youtube_preview.ts';
 
 test('YouTube動画URLから埋め込み対象の動画IDを識別する', () => {
   assert.deepEqual(
@@ -29,6 +33,11 @@ test('動画プレビュー用のサムネイルURLを生成する', () => {
     buildYouTubeThumbnailUrl('dQw4w9WgXcQ'),
     'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
   );
+});
+
+test('YouTubeプレビューのタイトルは25文字を超える場合に省略記号を付ける', () => {
+  assert.equal(truncateYouTubePreviewTitle('あ'.repeat(25)), 'あ'.repeat(25));
+  assert.equal(truncateYouTubePreviewTitle('😀'.repeat(26)), `${'😀'.repeat(25)}…`);
 });
 
 test('YouTubeプレビューは設定で無効化でき、初期値はOFFである', async () => {

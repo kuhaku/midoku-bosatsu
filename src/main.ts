@@ -83,7 +83,12 @@ import {
   truncateFxTwitterPreviewText,
   type FxTwitterPreview,
 } from './fxtwitter_preview.ts';
-import { buildYouTubeThumbnailUrl, parseYouTubeVideoUrl } from './youtube_preview.ts';
+import {
+  buildYouTubeThumbnailUrl,
+  fetchYouTubeVideoTitle,
+  parseYouTubeVideoUrl,
+  truncateYouTubePreviewTitle,
+} from './youtube_preview.ts';
 
 type GlobalConfig = {
   poll_interval_seconds: number;
@@ -2269,12 +2274,18 @@ function appendYouTubePreviews(body: HTMLElement): void {
     thumbnail.loading = 'lazy';
     thumbnail.decoding = 'async';
     thumbnail.referrerPolicy = 'no-referrer';
+    const title = document.createElement('span');
+    title.className = 'youtube-preview-title';
     const label = document.createElement('span');
     label.className = 'youtube-preview-play-label';
     label.textContent = 'YouTubeで再生';
-    playLink.append(thumbnail, label);
+    playLink.append(thumbnail, title, label);
     preview.append(playLink);
     link.after(preview);
+
+    void fetchYouTubeVideoTitle(reference.url).then((videoTitle) => {
+      if (videoTitle) title.textContent = truncateYouTubePreviewTitle(videoTitle);
+    });
   }
 }
 

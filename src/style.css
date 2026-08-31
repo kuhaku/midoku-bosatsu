@@ -729,6 +729,22 @@ button:disabled { cursor: default; opacity: .45; }
   object-fit: cover;
 }
 
+.youtube-preview-title {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  overflow: hidden;
+  color: #fff;
+  background: rgb(0 0 0 / 75%);
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .youtube-preview-play-label {
   position: absolute;
   right: 10px;
