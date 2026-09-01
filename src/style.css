@@ -1008,7 +1008,7 @@ button:disabled { cursor: default; opacity: .45; }
   border-color: #dadce0;
   border-radius: 50%;
   background: #f8f9fa;
-  color: #202124;
+  color: #004040;
   place-items: center;
   box-shadow: 0 5px 18px rgba(0, 0, 0, .32);
 }
