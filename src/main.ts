@@ -1092,6 +1092,11 @@ app.innerHTML = `
     <div class="fixed-status-inner">
       <div class="fixed-status-main">
         <div class="fixed-status-metric">
+          <button id="fixed-newest-post-button" class="fixed-newest-post-button" type="button" aria-label="最新の投稿へ移動" title="最新の投稿へ移動">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="m12 5 7 7-1.4 1.4-4.6-4.6V19h-2V8.8l-4.6 4.6L5 12l7-7Z" />
+            </svg>
+          </button>
           <span class="status-label">最終取得</span>
           <strong id="last-fetch">-</strong>
         </div>
@@ -1167,6 +1172,7 @@ const mobileTimelineNavigationToggle = mustElement<HTMLButtonElement>('#mobile-t
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
+const fixedNewestPostButton = mustElement<HTMLButtonElement>('#fixed-newest-post-button');
 const savedPostsButton = mustElement<HTMLButtonElement>('#saved-posts-button');
 const shortcutKeyListButton = mustElement<HTMLButtonElement>('#shortcut-key-list-button');
 const unreadJumpButton = mustElement<HTMLButtonElement>('#unread-jump-button');
@@ -6183,6 +6189,10 @@ newPostButton.addEventListener('click', () => {
 
 fixedNewPostButton.addEventListener('click', () => {
   openNewPostView();
+});
+
+fixedNewestPostButton.addEventListener('click', () => {
+  jumpToNewestPost();
 });
 
 savedPostsButton.addEventListener('click', openSavedPostsView);

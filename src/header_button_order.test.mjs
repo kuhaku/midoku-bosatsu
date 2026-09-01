@@ -34,6 +34,22 @@ test('固定ステータスバーの未読境界ボタンはジャンプ処理�
   assert.match(mainSource, /unreadJumpButton\.addEventListener\('click', \(\) => \{\s*jumpToUnreadBoundary\(\);\s*\}\);/u);
 });
 
+test('固定ステータスバーの最終取得の左隣に最新投稿へ移動するアイコンボタンを置く', () => {
+  assert.match(
+    mainSource,
+    /<div class="fixed-status-metric">[\s\S]*?<button id="fixed-newest-post-button" class="fixed-newest-post-button" type="button" aria-label="最新の投稿へ移動" title="最新の投稿へ移動">[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<span class="status-label">最終取得<\/span>/u,
+  );
+  assert.match(mainSource, /const fixedNewestPostButton = mustElement<HTMLButtonElement>\('#fixed-newest-post-button'\);/u);
+  assert.match(
+    mainSource,
+    /fixedNewestPostButton\.addEventListener\('click', \(\) => \{\s*jumpToNewestPost\(\);\s*\}\);/u,
+  );
+  assert.match(
+    styleSource,
+    /\.fixed-newest-post-button\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/u,
+  );
+});
+
 test('左ナビは追加の余白を置かない', () => {
   const navigation = mainSource.match(/<nav[^>]*class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
 

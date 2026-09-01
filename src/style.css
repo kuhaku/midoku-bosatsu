@@ -865,6 +865,23 @@ button:disabled { cursor: default; opacity: .45; }
   white-space: nowrap;
 }
 
+.fixed-newest-post-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  place-items: center;
+}
+
+.fixed-newest-post-button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
 .fixed-status-error-row {
   display: flex;
   align-items: baseline;
