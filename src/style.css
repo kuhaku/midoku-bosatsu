@@ -66,6 +66,7 @@ body { margin: 0; min-width: 320px; background: var(--color-bg); color: var(--co
 button, input, select, textarea { font: inherit; }
 
 .app-shell {
+  position: relative;
   min-height: 100vh;
   width: min(100%, 1366px);
   margin: 0 auto;
@@ -1063,7 +1064,7 @@ button:disabled { cursor: default; opacity: .45; }
   }
   .mobile-timeline-navigation-toggle {
     display: block;
-    position: fixed;
+    position: absolute;
     z-index: 1300;
     top: 12px;
     right: 12px;

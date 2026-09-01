@@ -146,9 +146,10 @@ test('モバイル幅では右上の専用ボタンでナビを開閉し、ナ�
   assert.match(mainSource, /mobileTimelineNavigationToggle\.addEventListener\('click', toggleTimelineNavigation\);/u);
   assert.match(mainSource, /for \(const button of \[timelineNavigationToggle, mobileTimelineNavigationToggle\]\)/u);
   assert.ok(singleColumnMedia, '1カラム用のメディアクエリが見つかりません');
+  assert.match(styleSource, /\.app-shell\s*\{[^}]*position:\s*relative/u);
   assert.match(
     singleColumnMedia,
-    /\.mobile-timeline-navigation-toggle\s*\{[^}]*display:\s*block[^}]*position:\s*fixed[^}]*top:\s*12px[^}]*right:\s*12px/u,
+    /\.mobile-timeline-navigation-toggle\s*\{[^}]*display:\s*block[^}]*position:\s*absolute[^}]*top:\s*12px[^}]*right:\s*12px/u,
   );
   assert.match(singleColumnMedia, /#new-post-button\s*\{[^}]*display:\s*none/u);
   assert.match(singleColumnMedia, /\.text-search-bar\s*\{[^}]*top:\s*64px/u);
