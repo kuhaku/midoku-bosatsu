@@ -386,6 +386,7 @@ if (!app) {
 
 app.innerHTML = `
   <main class="app-shell">
+    <button id="mobile-timeline-navigation-toggle" class="mobile-timeline-navigation-toggle" type="button" aria-controls="timeline-navigation" aria-expanded="true" aria-label="ナビを閉じる" title="ナビを閉じる">‹</button>
     <div class="timeline-layout">
       <button id="timeline-navigation-toggle" class="timeline-navigation-toggle" type="button" aria-controls="timeline-navigation" aria-expanded="true" aria-label="ナビを閉じる" title="ナビを閉じる">‹</button>
       <nav id="timeline-navigation" class="timeline-navigation" aria-label="投稿タイムラインの操作">
@@ -1162,6 +1163,7 @@ const reloadButton = mustElement<HTMLButtonElement>('#reload-button');
 const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
 const timelineNavigationToggle = mustElement<HTMLButtonElement>('#timeline-navigation-toggle');
+const mobileTimelineNavigationToggle = mustElement<HTMLButtonElement>('#mobile-timeline-navigation-toggle');
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
@@ -4381,11 +4383,13 @@ function toggleTimelineNavigation(): void {
   if (!bbsActionView.hidden) return;
   const hidden = timelineNavigation.classList.toggle('is-hidden');
   timelineLayout.classList.toggle('is-navigation-hidden', hidden);
-  timelineNavigationToggle.setAttribute('aria-expanded', String(!hidden));
   const label = hidden ? 'ナビを開く' : 'ナビを閉じる';
-  timelineNavigationToggle.setAttribute('aria-label', label);
-  timelineNavigationToggle.title = label;
-  timelineNavigationToggle.textContent = hidden ? '›' : '‹';
+  for (const button of [timelineNavigationToggle, mobileTimelineNavigationToggle]) {
+    button.setAttribute('aria-expanded', String(!hidden));
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.textContent = hidden ? '›' : '‹';
+  }
 }
 
 function renderPosts(): void {
@@ -6194,6 +6198,7 @@ unreadJumpButton.addEventListener('click', () => {
 });
 
 timelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
+mobileTimelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
 
 settingsButton.addEventListener('click', () => {
   openSettings();

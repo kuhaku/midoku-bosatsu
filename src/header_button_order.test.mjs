@@ -88,13 +88,23 @@ test('左ナビを閉じた後もナビ外の開閉ボタンから再表示で�
   assert.match(mainSource, /timelineNavigationToggle\.addEventListener\('click', toggleTimelineNavigation\);/u);
   assert.match(
     mainSource,
-    /timelineNavigationToggle\.setAttribute\('aria-expanded', String\(!hidden\)\);\s*const label = hidden \? 'ナビを開く' : 'ナビを閉じる';\s*timelineNavigationToggle\.setAttribute\('aria-label', label\);\s*timelineNavigationToggle\.title = label;\s*timelineNavigationToggle\.textContent = hidden \? '›' : '‹';/u,
+    /const label = hidden \? 'ナビを開く' : 'ナビを閉じる';\s*for \(const button of \[timelineNavigationToggle, mobileTimelineNavigationToggle\]\) \{\s*button\.setAttribute\('aria-expanded', String\(!hidden\)\);\s*button\.setAttribute\('aria-label', label\);\s*button\.title = label;\s*button\.textContent = hidden \? '›' : '‹';\s*\}/u,
   );
   assert.match(
     styleSource,
     /\.timeline-navigation-toggle\s*\{[^}]*position:\s*sticky/u,
   );
-  assert.match(styleSource, /\.timeline-navigation-toggle\s*\{[^}]*top:\s*0[^}]*padding-block:\s*8px[^}]*padding-inline:\s*0/u);
+  assert.match(
+    styleSource,
+    /\.timeline-navigation-toggle\s*\{[^}]*top:\s*0[^}]*align-self:\s*start[^}]*padding-block-start:\s*0[^}]*padding-block-end:\s*100px[^}]*padding-inline:\s*0/u,
+  );
+});
+
+test('ナビ開閉ボタンは枠線と背景色を表示しない', () => {
+  assert.match(
+    styleSource,
+    /\.timeline-navigation-toggle\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/u,
+  );
 });
 
 test('1カラム表示では左ナビ由来のボタンを1行に並べる', () => {
@@ -106,7 +116,26 @@ test('1カラム表示では左ナビ由来のボタンを1行に並べる', () 
     /\.timeline-navigation\s*\{[^}]*grid-template-columns:\s*repeat\(7, max-content\)[^}]*justify-content:\s*start/u,
   );
   assert.match(singleColumnMedia, /\.timeline-navigation button\s*\{[^}]*width:\s*auto/u);
+  assert.match(singleColumnMedia, /\.timeline-navigation button\s*\{[^}]*padding-inline:\s*4px/u);
   assert.match(singleColumnMedia, /\.timeline-navigation-toggle\s*\{[^}]*display:\s*none/u);
+});
+
+test('モバイル幅では右上の専用ボタンでナビを開閉し、ナビの新規投稿を表示しない', () => {
+  const singleColumnMedia = styleSource.match(/@media \(max-width: 800px\)\s*\{([\s\S]*?)\n\}/u)?.[1];
+
+  assert.match(
+    mainSource,
+    /<button id="mobile-timeline-navigation-toggle" class="mobile-timeline-navigation-toggle"[^>]*aria-controls="timeline-navigation"[^>]*aria-expanded="true"[^>]*aria-label="ナビを閉じる"[^>]*title="ナビを閉じる"[^>]*>‹<\/button>/u,
+  );
+  assert.match(mainSource, /mobileTimelineNavigationToggle\.addEventListener\('click', toggleTimelineNavigation\);/u);
+  assert.match(mainSource, /for \(const button of \[timelineNavigationToggle, mobileTimelineNavigationToggle\]\)/u);
+  assert.ok(singleColumnMedia, '1カラム用のメディアクエリが見つかりません');
+  assert.match(
+    singleColumnMedia,
+    /\.mobile-timeline-navigation-toggle\s*\{[^}]*display:\s*block[^}]*position:\s*fixed[^}]*top:\s*12px[^}]*right:\s*12px/u,
+  );
+  assert.match(singleColumnMedia, /#new-post-button\s*\{[^}]*display:\s*none/u);
+  assert.match(singleColumnMedia, /\.text-search-bar\s*\{[^}]*top:\s*64px/u);
 });
 
 test('1カラム表示のナビは幅によって2行へ戻さない', () => {

@@ -99,13 +99,17 @@ button, input, select, textarea { font: inherit; }
 }
 
 .timeline-navigation-toggle {
+  border: 0;
+  background: transparent;
   position: sticky;
   z-index: 3;
   top: 0;
+  align-self: start;
   grid-column: 2;
   grid-row: 1;
   width: auto;
-  padding-block: 8px;
+  padding-block-start: 0;
+  padding-block-end: 100px;
   padding-inline: 0;
   font-size: 24px;
   line-height: 1;
@@ -113,6 +117,10 @@ button, input, select, textarea { font: inherit; }
 
 .timeline-layout.is-navigation-hidden .timeline-navigation-toggle {
   grid-column: 1;
+}
+
+.mobile-timeline-navigation-toggle {
+  display: none;
 }
 
 .timeline-content {
@@ -1036,11 +1044,30 @@ button:disabled { cursor: default; opacity: .45; }
     grid-template-columns: repeat(7, max-content);
     justify-content: start;
   }
+  .mobile-timeline-navigation-toggle {
+    display: block;
+    position: fixed;
+    z-index: 1300;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 24px;
+    line-height: 1;
+  }
+  #new-post-button { display: none; }
+  .text-search-bar { top: 64px; }
   .timeline-content {
     grid-column: auto;
     grid-row: auto;
   }
-  .timeline-navigation button { width: auto; }
+  .timeline-navigation button {
+    width: auto;
+    padding-inline: 4px;
+  }
   .bbs-timeline-menu button { width: 100%; }
   .bbs-timeline-menu {
     top: calc(100% + 6px);
