@@ -110,7 +110,7 @@ button, input, select, textarea { font: inherit; }
   grid-row: 1;
   width: auto;
   padding-block-start: 0;
-  padding-block-end: 100px;
+  padding-block-end: 100vh;
   padding-inline: 0;
   font-size: 24px;
   line-height: 1;

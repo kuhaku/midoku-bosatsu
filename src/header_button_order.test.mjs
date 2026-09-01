@@ -112,7 +112,7 @@ test('左ナビを閉じた後もナビ外の開閉ボタンから再表示で�
   );
   assert.match(
     styleSource,
-    /\.timeline-navigation-toggle\s*\{[^}]*top:\s*0[^}]*align-self:\s*start[^}]*padding-block-start:\s*0[^}]*padding-block-end:\s*100px[^}]*padding-inline:\s*0/u,
+    /\.timeline-navigation-toggle\s*\{[^}]*top:\s*0[^}]*align-self:\s*start[^}]*padding-block-start:\s*0[^}]*padding-block-end:\s*100vh[^}]*padding-inline:\s*0/u,
   );
 });
 
