@@ -1089,6 +1089,11 @@ app.innerHTML = `
           <span class="status-label">最終取得</span>
           <strong id="last-fetch">-</strong>
         </div>
+        <button id="fixed-new-post-button" class="fixed-new-post-button" type="button" aria-label="新規投稿" title="新規投稿" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" />
+          </svg>
+        </button>
         <div class="fixed-status-actions">
           <button id="unread-jump-button" type="button" disabled>未読境界へ</button>
         </div>
@@ -1153,6 +1158,7 @@ const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
+const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
 const savedPostsButton = mustElement<HTMLButtonElement>('#saved-posts-button');
 const shortcutKeyListButton = mustElement<HTMLButtonElement>('#shortcut-key-list-button');
 const timelineUnreadJumpButton = mustElement<HTMLButtonElement>('#timeline-unread-jump-button');
@@ -5692,6 +5698,7 @@ async function applyBbsConfigAfterSave(loadedConfig: ReaderConfig): Promise<void
   renderBbsTimelineMenu();
   enabledSites = loadedConfig.sites.filter((site) => site.enabled);
   newPostButton.disabled = enabledSites.length === 0;
+  fixedNewPostButton.disabled = enabledSites.length === 0;
   applyBbsBadgeStyles(loadedConfig.sites);
   initializedSites.clear();
   lastBbsRequestStartedAtMs = 0;
@@ -5895,6 +5902,7 @@ async function bootstrap(): Promise<void> {
     savedReaderStyle = loadedStyle;
     settingsButton.disabled = false;
     newPostButton.disabled = enabledSites.length === 0;
+    fixedNewPostButton.disabled = enabledSites.length === 0;
 
     for (const site of enabledSites) {
       siteNames.set(site.id, site.name);
@@ -6156,6 +6164,10 @@ textSearchCloseButton.addEventListener('click', () => {
 });
 
 newPostButton.addEventListener('click', () => {
+  openNewPostView();
+});
+
+fixedNewPostButton.addEventListener('click', () => {
   openNewPostView();
 });
 

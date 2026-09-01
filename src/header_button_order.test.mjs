@@ -17,7 +17,7 @@ test('左ナビに主要操作を指定順で置き、タイムライン見出�
   assert.doesNotMatch(mainSource, /<h1>未読菩薩<\/h1>/u);
 });
 
-test('固定ステータスバーには未読境界ボタンだけを表示する', () => {
+test('固定ステータスバーには中央の新規投稿と右端の未読境界ボタンを表示する', () => {
   const fixedStatusActions = mainSource.match(/<div class="fixed-status-actions">([\s\S]*?)<\/div>/u)?.[1];
 
   assert.ok(fixedStatusActions, '固定ステータスアクションが見つかりません');
@@ -25,7 +25,8 @@ test('固定ステータスバーには未読境界ボタンだけを表示す�
     [...fixedStatusActions.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]),
     ['未読境界へ'],
   );
-  assert.doesNotMatch(fixedStatusActions, /保存済み投稿/u);
+  assert.match(mainSource, /<button id="fixed-new-post-button"[^>]*aria-label="新規投稿"/u);
+  assert.doesNotMatch(fixedStatusActions, /保存済み投稿|新規投稿/u);
 });
 
 test('左ナビと固定ステータスバーの未読境界ボタンは同じジャンプ処理を使う', () => {
