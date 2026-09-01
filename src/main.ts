@@ -8,6 +8,7 @@ import {
   checkForManualAppUpdate,
   createStartupUpdateSequence,
   formatAppUpdateDate,
+  formatUpdateNotes,
   installAppUpdate,
   type AppUpdate,
 } from './app_updates.ts';
@@ -1068,6 +1069,10 @@ app.innerHTML = `
               <div id="available-app-update" hidden>
                 <p id="available-app-update-version"></p>
                 <p id="available-app-update-date"></p>
+                <div class="available-app-update-notes-section" aria-labelledby="available-app-update-notes-heading">
+                  <h3 id="available-app-update-notes-heading">リリースノート</h3>
+                  <p id="available-app-update-notes"></p>
+                </div>
                 <button id="install-app-update" type="button">アップデートする</button>
               </div>
               <p id="app-update-status" class="bbs-settings-message" aria-live="polite"></p>
@@ -1171,6 +1176,7 @@ const checkAppUpdateButton = mustElement<HTMLButtonElement>('#check-app-update')
 const availableAppUpdateElement = mustElement<HTMLDivElement>('#available-app-update');
 const availableAppUpdateVersion = mustElement<HTMLParagraphElement>('#available-app-update-version');
 const availableAppUpdateDate = mustElement<HTMLParagraphElement>('#available-app-update-date');
+const availableAppUpdateNotes = mustElement<HTMLParagraphElement>('#available-app-update-notes');
 const installAppUpdateButton = mustElement<HTMLButtonElement>('#install-app-update');
 const appUpdateStatus = mustElement<HTMLParagraphElement>('#app-update-status');
 let availableAppUpdate: AppUpdate | null = null;
@@ -1207,6 +1213,7 @@ async function checkForManualUpdate(): Promise<void> {
     availableAppUpdate = update;
     availableAppUpdateVersion.textContent = `新しいバージョン: v${update.version}`;
     availableAppUpdateDate.textContent = formatAppUpdateDate(update.date);
+    availableAppUpdateNotes.textContent = formatUpdateNotes(update.body);
     availableAppUpdateElement.hidden = false;
     installAppUpdateButton.disabled = false;
     showAppUpdateStatus('アップデートが見つかりました。');

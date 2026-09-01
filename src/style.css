@@ -1843,6 +1843,19 @@ button:disabled { cursor: default; opacity: .45; }
   margin-top: 12px;
 }
 
+.available-app-update-notes-section {
+  margin-top: 16px;
+}
+
+.available-app-update-notes-section h3 {
+  margin: 0;
+  font-size: 1em;
+}
+
+#available-app-update-notes {
+  white-space: pre-wrap;
+}
+
 #app-update-status {
   min-height: 1.5em;
 }

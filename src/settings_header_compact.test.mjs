@@ -39,3 +39,11 @@ test('バージョンタブで更新を確認し、見つかった更新を適�
   assert.match(mainSource, /checkAppUpdateButton\.addEventListener\('click', \(\) => \{[\s\S]*?void checkForManualUpdate\(\);/u);
   assert.match(mainSource, /installAppUpdateButton\.addEventListener\('click', \(\) => \{[\s\S]*?void installManualUpdate\(\);/u);
 });
+
+test('バージョンタブは見つかった更新のリリースノートを表示する', () => {
+  const versionSettings = mainSource.match(/<section id="version-settings-dialog"[\s\S]*?<\/section>/u)?.[0];
+
+  assert.ok(versionSettings, 'バージョン設定の範囲が見つかりません');
+  assert.match(versionSettings, /id="available-app-update-notes"/u);
+  assert.match(mainSource, /availableAppUpdateNotes\.textContent = formatUpdateNotes\(update\.body\);/u);
+});
