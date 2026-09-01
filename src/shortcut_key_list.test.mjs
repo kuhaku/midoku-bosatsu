@@ -6,7 +6,7 @@ const mainSource = fs.readFileSync(new URL('./main.ts', import.meta.url), 'utf8'
 const styleSource = fs.readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 
 test('キー一覧は保存済み投稿一覧の直下から開けて、Escで閉じられる', () => {
-  const navigation = mainSource.match(/<nav class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
+  const navigation = mainSource.match(/<nav[^>]*class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
 
   assert.ok(navigation, '左ナビが見つかりません');
   assert.match(

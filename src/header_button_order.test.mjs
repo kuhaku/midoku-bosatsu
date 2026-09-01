@@ -6,14 +6,14 @@ const mainSource = fs.readFileSync(new URL('./main.ts', import.meta.url), 'utf8'
 const styleSource = fs.readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 
 test('左ナビに主要操作を指定順で置き、タイムライン見出しは表示しない', () => {
-  const navigation = mainSource.match(/<nav class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
+  const navigation = mainSource.match(/<nav[^>]*class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
 
   assert.ok(navigation, '左ナビが見つかりません');
   assert.deepEqual(
     [...navigation.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]),
-    ['未読リロード', '未読境界へ', 'BBS表示切替', '保存済み投稿一覧', 'キー一覧', '新規投稿', '設定'],
+    ['未読リロード', 'BBS表示切替', '保存済み投稿一覧', 'キー一覧', '新規投稿', '設定'],
   );
-  assert.match(navigation, /id="timeline-unread-jump-button"/u);
+  assert.doesNotMatch(navigation, /timeline-unread-jump-button/u);
   assert.doesNotMatch(mainSource, /<h1>未読菩薩<\/h1>/u);
 });
 
@@ -29,13 +29,13 @@ test('固定ステータスバーには中央の新規投稿と右端の未読�
   assert.doesNotMatch(fixedStatusActions, /保存済み投稿|新規投稿/u);
 });
 
-test('左ナビと固定ステータスバーの未読境界ボタンは同じジャンプ処理を使う', () => {
-  assert.match(mainSource, /timelineUnreadJumpButton\.addEventListener\('click', \(\) => \{\s*jumpToUnreadBoundary\(\);\s*\}\);/u);
+test('固定ステータスバーの未読境界ボタンはジャンプ処理を使う', () => {
+  assert.doesNotMatch(mainSource, /timelineUnreadJumpButton/u);
   assert.match(mainSource, /unreadJumpButton\.addEventListener\('click', \(\) => \{\s*jumpToUnreadBoundary\(\);\s*\}\);/u);
 });
 
 test('左ナビは追加の余白を置かない', () => {
-  const navigation = mainSource.match(/<nav class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
+  const navigation = mainSource.match(/<nav[^>]*class="timeline-navigation"[^>]*>([\s\S]*?)<\/nav>/u)?.[1];
 
   assert.ok(navigation, '左ナビが見つかりません');
   assert.doesNotMatch(navigation, /timeline-navigation-spacer/u);
@@ -60,12 +60,41 @@ test('BBS表示切替のメニューは投稿カラムより前面に表示し�
   );
 });
 
-test('左ナビを非表示にしたときタイムラインは1列幅を使う', () => {
+test('投稿タイムラインは左ナビ・開閉ボタン・投稿カラムの3列で表示する', () => {
+  assert.match(
+    styleSource,
+    /\.timeline-layout\s*\{[^}]*grid-template-columns:\s*180px\s+auto\s+minmax\(0,\s*1fr\)/u,
+  );
+  assert.match(styleSource, /\.timeline-navigation\s*\{[^}]*grid-column:\s*1/u);
+  assert.match(styleSource, /\.timeline-navigation-toggle\s*\{[^}]*grid-column:\s*2/u);
+  assert.match(styleSource, /\.timeline-content\s*\{[^}]*grid-column:\s*3/u);
+  assert.match(styleSource, /\.timeline-layout\s*\{[^}]*column-gap:\s*4px/u);
+});
+
+test('左ナビを非表示にしたときは開閉ボタンとタイムラインの2列幅を使う', () => {
   assert.match(mainSource, /timelineLayout\.classList\.toggle\('is-navigation-hidden', hidden\)/u);
   assert.match(
     styleSource,
-    /\.timeline-layout\.is-navigation-hidden\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
+    /\.timeline-layout\.is-navigation-hidden\s*\{[^}]*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)/u,
   );
+  assert.match(styleSource, /\.timeline-layout\.is-navigation-hidden\s+\.timeline-content\s*\{[^}]*grid-column:\s*2/u);
+});
+
+test('左ナビを閉じた後もナビ外の開閉ボタンから再表示できる', () => {
+  assert.match(
+    mainSource,
+    /<button id="timeline-navigation-toggle"[^>]*aria-controls="timeline-navigation"[^>]*aria-expanded="true"[^>]*aria-label="ナビを閉じる"[^>]*title="ナビを閉じる"[^>]*>‹<\/button>/u,
+  );
+  assert.match(mainSource, /timelineNavigationToggle\.addEventListener\('click', toggleTimelineNavigation\);/u);
+  assert.match(
+    mainSource,
+    /timelineNavigationToggle\.setAttribute\('aria-expanded', String\(!hidden\)\);\s*const label = hidden \? 'ナビを開く' : 'ナビを閉じる';\s*timelineNavigationToggle\.setAttribute\('aria-label', label\);\s*timelineNavigationToggle\.title = label;\s*timelineNavigationToggle\.textContent = hidden \? '›' : '‹';/u,
+  );
+  assert.match(
+    styleSource,
+    /\.timeline-navigation-toggle\s*\{[^}]*position:\s*sticky/u,
+  );
+  assert.match(styleSource, /\.timeline-navigation-toggle\s*\{[^}]*top:\s*0[^}]*padding-block:\s*8px[^}]*padding-inline:\s*0/u);
 });
 
 test('1カラム表示では左ナビ由来のボタンを1行に並べる', () => {
@@ -77,6 +106,7 @@ test('1カラム表示では左ナビ由来のボタンを1行に並べる', () 
     /\.timeline-navigation\s*\{[^}]*grid-template-columns:\s*repeat\(7, max-content\)[^}]*justify-content:\s*start/u,
   );
   assert.match(singleColumnMedia, /\.timeline-navigation button\s*\{[^}]*width:\s*auto/u);
+  assert.match(singleColumnMedia, /\.timeline-navigation-toggle\s*\{[^}]*display:\s*none/u);
 });
 
 test('1カラム表示のナビは幅によって2行へ戻さない', () => {

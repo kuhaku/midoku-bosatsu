@@ -386,9 +386,9 @@ if (!app) {
 app.innerHTML = `
   <main class="app-shell">
     <div class="timeline-layout">
-      <nav class="timeline-navigation" aria-label="投稿タイムラインの操作">
+      <button id="timeline-navigation-toggle" class="timeline-navigation-toggle" type="button" aria-controls="timeline-navigation" aria-expanded="true" aria-label="ナビを閉じる" title="ナビを閉じる">‹</button>
+      <nav id="timeline-navigation" class="timeline-navigation" aria-label="投稿タイムラインの操作">
         <button id="reload-button" class="primary-button" type="button">未読リロード</button>
-        <button id="timeline-unread-jump-button" type="button" disabled>未読境界へ</button>
         <div class="bbs-timeline-switcher">
           <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
           <div id="bbs-timeline-menu" class="bbs-timeline-menu" role="menu" aria-label="表示するBBSを選択"></div>
@@ -1156,12 +1156,12 @@ const textSearchCloseButton = mustElement<HTMLButtonElement>('#text-search-close
 const reloadButton = mustElement<HTMLButtonElement>('#reload-button');
 const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
+const timelineNavigationToggle = mustElement<HTMLButtonElement>('#timeline-navigation-toggle');
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
 const savedPostsButton = mustElement<HTMLButtonElement>('#saved-posts-button');
 const shortcutKeyListButton = mustElement<HTMLButtonElement>('#shortcut-key-list-button');
-const timelineUnreadJumpButton = mustElement<HTMLButtonElement>('#timeline-unread-jump-button');
 const unreadJumpButton = mustElement<HTMLButtonElement>('#unread-jump-button');
 const settingsButton = mustElement<HTMLButtonElement>('#settings-button');
 const settingsDialog = mustElement<HTMLDialogElement>('#settings-dialog');
@@ -2538,10 +2538,8 @@ function buildUnreadBoundary(count: number, newestFirst: boolean): HTMLElement {
 function updateUnreadControls(posts: ParsedPost[]): void {
   const count = unreadCount(posts);
   const label = count > 0 ? `未読境界へ (${count})` : '未読境界へ';
-  for (const button of [timelineUnreadJumpButton, unreadJumpButton]) {
-    button.disabled = count === 0;
-    button.textContent = label;
-  }
+  unreadJumpButton.disabled = count === 0;
+  unreadJumpButton.textContent = label;
 }
 
 function renderReplyNotificationBanner(): void {
@@ -4376,6 +4374,11 @@ function toggleTimelineNavigation(): void {
   if (!bbsActionView.hidden) return;
   const hidden = timelineNavigation.classList.toggle('is-hidden');
   timelineLayout.classList.toggle('is-navigation-hidden', hidden);
+  timelineNavigationToggle.setAttribute('aria-expanded', String(!hidden));
+  const label = hidden ? 'ナビを開く' : 'ナビを閉じる';
+  timelineNavigationToggle.setAttribute('aria-label', label);
+  timelineNavigationToggle.title = label;
+  timelineNavigationToggle.textContent = hidden ? '›' : '‹';
 }
 
 function renderPosts(): void {
@@ -6183,9 +6186,7 @@ unreadJumpButton.addEventListener('click', () => {
   jumpToUnreadBoundary();
 });
 
-timelineUnreadJumpButton.addEventListener('click', () => {
-  jumpToUnreadBoundary();
-});
+timelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
 
 settingsButton.addEventListener('click', () => {
   openSettings();
