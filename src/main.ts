@@ -4394,8 +4394,11 @@ function toggleTimelineNavigation(): void {
     button.setAttribute('aria-expanded', String(!hidden));
     button.setAttribute('aria-label', label);
     button.title = label;
-    button.textContent = hidden ? '›' : '‹';
   }
+  timelineNavigationToggle.textContent = hidden ? '›' : '‹';
+  mobileTimelineNavigationToggle.innerHTML = hidden
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18"/></svg>'
+    : '‹';
 }
 
 function renderPosts(): void {

@@ -104,7 +104,7 @@ test('左ナビを閉じた後もナビ外の開閉ボタンから再表示で�
   assert.match(mainSource, /timelineNavigationToggle\.addEventListener\('click', toggleTimelineNavigation\);/u);
   assert.match(
     mainSource,
-    /const label = hidden \? 'ナビを開く' : 'ナビを閉じる';\s*for \(const button of \[timelineNavigationToggle, mobileTimelineNavigationToggle\]\) \{\s*button\.setAttribute\('aria-expanded', String\(!hidden\)\);\s*button\.setAttribute\('aria-label', label\);\s*button\.title = label;\s*button\.textContent = hidden \? '›' : '‹';\s*\}/u,
+    /const label = hidden \? 'ナビを開く' : 'ナビを閉じる';\s*for \(const button of \[timelineNavigationToggle, mobileTimelineNavigationToggle\]\) \{\s*button\.setAttribute\('aria-expanded', String\(!hidden\)\);\s*button\.setAttribute\('aria-label', label\);\s*button\.title = label;\s*\}\s*timelineNavigationToggle\.textContent = hidden \? '›' : '‹';/u,
   );
   assert.match(
     styleSource,
@@ -153,6 +153,17 @@ test('モバイル幅では右上の専用ボタンでナビを開閉し、ナ�
   );
   assert.match(singleColumnMedia, /#new-post-button\s*\{[^}]*display:\s*none/u);
   assert.match(singleColumnMedia, /\.text-search-bar\s*\{[^}]*top:\s*64px/u);
+});
+
+test('モバイル幅でナビを開くボタンはハンバーガーアイコンを表示する', () => {
+  assert.match(
+    mainSource,
+    /mobileTimelineNavigationToggle\.innerHTML = hidden\s*\? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18"\/><\/svg>'\s*: '‹';/u,
+  );
+  assert.match(
+    styleSource,
+    /\.mobile-timeline-navigation-toggle svg\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*fill:\s*none[^}]*stroke:\s*currentColor/u,
+  );
 });
 
 test('1カラム表示のナビは幅によって2行へ戻さない', () => {
