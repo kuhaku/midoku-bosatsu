@@ -48,6 +48,10 @@ tree_view_enabled = false
 hide_tree_link = false
 hide_thread_hide_link = false
 
+# trueなら新規投稿・フォロー投稿画面でEscを押した際、閉じる前に確認する。
+# 初期値はOFF。
+confirm_post_close_on_escape = false
+
 # 本文中の &#123; / &#x1F600; のような数値文字参照をUnicode文字へ展開する。
 # 初期値はOFF。
 expand_numeric_character_references = false

@@ -73,6 +73,8 @@ pub struct GlobalConfig {
     pub reply_notification_sound_custom_name: String,
     #[serde(default)]
     pub reply_notification_include_descendants: bool,
+    #[serde(default)]
+    pub confirm_post_close_on_escape: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

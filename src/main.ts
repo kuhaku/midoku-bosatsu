@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { confirm as confirmDialog, open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
 import {
   checkForAppUpdate,
@@ -53,6 +53,7 @@ import {
   formatNewPostDestinationLabel,
   shouldConfirmNewPostSiteChange,
 } from './new_post_destination.ts';
+import { shouldRequestPostCloseConfirmation } from './post_close_confirmation.ts';
 import { isPostSubmitShortcut } from './post_submit_shortcut.ts';
 import { isPostNavigationShortcutTarget } from './keyboard_shortcut_target.ts';
 import {
@@ -121,6 +122,7 @@ type GlobalConfig = {
   reply_notification_sound_kind: 'default' | 'custom' | string;
   reply_notification_sound_custom_name: string;
   reply_notification_include_descendants: boolean;
+  confirm_post_close_on_escape: boolean;
 };
 
 type PostParserConfig = {
@@ -613,6 +615,10 @@ app.innerHTML = `
               <label class="settings-check settings-check-card">
                 <input id="general-hide-thread-hide-link" type="checkbox"> 「消」を表示する
                 <small>スレッドを非表示にするための「消」を表示します。</small>
+              </label>
+              <label class="settings-check settings-check-card">
+                <input id="general-confirm-post-close-on-escape" type="checkbox"> Escで投稿画面を閉じるときに確認する
+                <small>新規投稿・フォロー投稿の画面でEscを押すと、閉じる前に確認します。初期値はOFFです。</small>
               </label>
             </div>
           </details>
@@ -1285,6 +1291,7 @@ const generalPostSavingEnabledInput = mustElement<HTMLInputElement>('#general-po
 const generalTreeViewEnabledInput = mustElement<HTMLInputElement>('#general-tree-view-enabled');
 const generalHideTreeLinkInput = mustElement<HTMLInputElement>('#general-hide-tree-link');
 const generalHideThreadHideLinkInput = mustElement<HTMLInputElement>('#general-hide-thread-hide-link');
+const generalConfirmPostCloseOnEscapeInput = mustElement<HTMLInputElement>('#general-confirm-post-close-on-escape');
 const generalShowImagesInput = mustElement<HTMLInputElement>('#general-show-images');
 const generalShowFxTwitterPreviewsInput = mustElement<HTMLInputElement>('#general-show-fxtwitter-previews');
 const generalShowYouTubePreviewsInput = mustElement<HTMLInputElement>('#general-show-youtube-previews');
@@ -1435,6 +1442,7 @@ let viewingModeTimer: number | null = null;
 let requestInFlight = false;
 let bbsActionSubmitInFlight = false;
 let bbsActionViewPosts: ParsedPost[] = [];
+let bbsActionViewIsPostCompose = false;
 let initializedSites = new Set<string>();
 const siteFetchErrors = new Map<string, { siteName: string; message: string }>();
 let generalFooterError: string | null = null;
@@ -3271,6 +3279,7 @@ function buildActionViewPost(post: ParsedPost, depth = 0): HTMLElement {
 
 function closeBbsActionView(): void {
   bbsActionViewPosts = [];
+  bbsActionViewIsPostCompose = false;
   bbsActionView.hidden = true;
   bbsActionView.setAttribute('aria-hidden', 'true');
   bbsActionViewContent.replaceChildren();
@@ -3832,6 +3841,7 @@ function openNewPostView(): void {
   closeShortcutKeyListView(false);
   bbsActionView.hidden = false;
   bbsActionView.setAttribute('aria-hidden', 'false');
+  bbsActionViewIsPostCompose = true;
   bbsActionViewTitle.textContent = '新規投稿';
   const firstSite = enabledSites[0];
   void loadNewPostForm(firstSite.id);
@@ -3843,6 +3853,7 @@ async function openBbsActionView(siteId: string, href: string, kind: BbsActionKi
   closeShortcutKeyListView(false);
   bbsActionView.hidden = false;
   bbsActionView.setAttribute('aria-hidden', 'false');
+  bbsActionViewIsPostCompose = kind === 'follow';
   bbsActionViewSite.textContent = siteNames.get(siteId) ?? siteId;
   bbsActionViewTitle.textContent = kind === 'follow'
     ? '■ フォロー投稿'
@@ -4802,6 +4813,7 @@ function renderGeneralSettingsForm(): void {
   generalTreeViewEnabledInput.checked = generalDraftGlobal.tree_view_enabled ?? false;
   generalHideTreeLinkInput.checked = !(generalDraftGlobal.hide_tree_link ?? false);
   generalHideThreadHideLinkInput.checked = !(generalDraftGlobal.hide_thread_hide_link ?? false);
+  generalConfirmPostCloseOnEscapeInput.checked = generalDraftGlobal.confirm_post_close_on_escape ?? false;
   generalShowImagesInput.checked = generalDraftGlobal.show_post_images;
   generalShowFxTwitterPreviewsInput.checked = generalDraftGlobal.show_fxtwitter_previews ?? false;
   generalShowYouTubePreviewsInput.checked = generalDraftGlobal.show_youtube_previews ?? false;
@@ -4883,6 +4895,7 @@ function commitGeneralSettingsForm(): void {
   generalDraftGlobal.tree_view_enabled = generalTreeViewEnabledInput.checked;
   generalDraftGlobal.hide_tree_link = !generalHideTreeLinkInput.checked;
   generalDraftGlobal.hide_thread_hide_link = !generalHideThreadHideLinkInput.checked;
+  generalDraftGlobal.confirm_post_close_on_escape = generalConfirmPostCloseOnEscapeInput.checked;
   generalDraftGlobal.show_post_images = generalShowImagesInput.checked;
   generalDraftGlobal.show_fxtwitter_previews = generalShowFxTwitterPreviewsInput.checked;
   generalDraftGlobal.show_youtube_previews = generalShowYouTubePreviewsInput.checked;
@@ -6449,7 +6462,7 @@ bbsSettingsForm.addEventListener('submit', (event) => {
   void saveBbsSettings();
 });
 
-document.addEventListener('keydown', (event) => {
+document.addEventListener('keydown', async (event) => {
   if (event.key === 'Escape' && !postContextMenu.hidden) {
     event.preventDefault();
     closePostContextMenu();
@@ -6548,6 +6561,18 @@ document.addEventListener('keydown', (event) => {
 
   if (event.key === 'Escape' && !bbsActionView.hidden) {
     event.preventDefault();
+    if (shouldRequestPostCloseConfirmation(
+      bbsActionViewIsPostCompose,
+      config?.global.confirm_post_close_on_escape ?? false,
+    )) {
+      const confirmed = await confirmDialog('投稿画面を閉じますか？', {
+        title: '投稿画面を閉じる',
+        kind: 'warning',
+        okLabel: '閉じる',
+        cancelLabel: 'キャンセル',
+      });
+      if (!confirmed) return;
+    }
     closeBbsActionView();
     return;
   }
