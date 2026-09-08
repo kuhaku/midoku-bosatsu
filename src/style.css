@@ -2,7 +2,7 @@
   /* GUIから保存される表示スタイル。reader-style.css と同じCSS変数名を使う。 */
   --system-font-family: system-ui, -apple-system, BlinkMacSystemFont, Yu Gothic UI, Segoe UI, Roboto, Noto Sans JP, sans-serif;
   --system-font-size: 16px;
-  --post-font-family: MS Gothic, BIZ UDGothic, Yu Gothic UI, ui-monospace, monospace;
+  --post-font-family: MS Gothic, IPAexGothic, Yu Gothic UI, ui-monospace, monospace;
   --post-font-size: 16px;
 
   --post-background-color: #004040;

@@ -554,7 +554,7 @@ app.innerHTML = `
             <div class="settings-grid">
               <label class="settings-span-2">フォントファミリー
                 <input id="general-post-font-family" type="text" spellcheck="false">
-                <small>題名、投稿者、投稿日、本文、引用部分など投稿タイムラインだけに使います。</small>
+                <small><a href="https://forest.watch.impress.co.jp/library/software/ipaexfont/" target="_blank">窓の杜で IPAexGothic フォントをダウンロード</a></small>
               </label>
               <label>フォントサイズ（px）
                 <input id="general-post-font-size" type="number" min="8" max="72" step="1">
@@ -568,7 +568,7 @@ app.innerHTML = `
                 <span class="site-badge">あやしいわーるど＠みさお</span>
                 <span class="unread-badge">未読</span>
               </div>
-              <div class="post-preview-body">通常の本文です。<br><span class="post-quote">&gt;半角の&gt;から始まる引用部分</span><br><a href="#" class="post-preview-link">未訪問リンク</a></div>
+              <div class="post-preview-body">通常の本文です。<br><span class="post-quote">&gt; 半角の&gt;から始まる引用部分</span><br><a href="#" class="post-preview-link">未訪問リンク</a></div>
             </div>
           </details>
 

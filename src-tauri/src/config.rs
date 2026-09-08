@@ -806,7 +806,7 @@ fn parse_reader_style(source: &str) -> Result<ReaderStyleConfig, String> {
         .unwrap_or_else(|| "system-ui, -apple-system, BlinkMacSystemFont, Yu Gothic UI, Segoe UI, Roboto, Noto Sans JP, sans-serif".to_string());
     let system_font_size_px = css_px_var(source, "system-font-size").unwrap_or(16);
     let post_font_family = css_var(source, "post-font-family").unwrap_or_else(|| {
-        "MS Gothic, BIZ UDGothic, Yu Gothic UI, ui-monospace, monospace".to_string()
+        "MS Gothic, IPAexGothic, Yu Gothic UI, ui-monospace, monospace".to_string()
     });
     let post_font_size_px = css_px_var(source, "post-font-size").unwrap_or(16);
 
