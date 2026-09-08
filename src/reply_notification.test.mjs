@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { inflateSync } from 'node:zlib';
 import {
   notificationButtonMode,
   notificationButtonViewModel,
@@ -11,6 +12,54 @@ import {
   knownDescendantPostIds,
   chooseOldestUnreadReplyPostKey,
 } from './reply_notification.ts';
+
+function paeth(left, above, upperLeft) {
+  const estimate = left + above - upperLeft;
+  const leftDistance = Math.abs(estimate - left);
+  const aboveDistance = Math.abs(estimate - above);
+  const upperLeftDistance = Math.abs(estimate - upperLeft);
+  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance) return left;
+  if (aboveDistance <= upperLeftDistance) return above;
+  return upperLeft;
+}
+
+function pngRgbaPixel(png, targetX, targetY) {
+  const width = png.readUInt32BE(16);
+  const height = png.readUInt32BE(20);
+  assert.equal(png[25], 6, 'RGBA PNGであること');
+  assert.equal(png[28], 0, 'インターレースPNGではないこと');
+
+  const compressed = [];
+  for (let offset = 8; offset < png.length;) {
+    const length = png.readUInt32BE(offset);
+    const type = png.subarray(offset + 4, offset + 8).toString('ascii');
+    if (type === 'IDAT') compressed.push(png.subarray(offset + 8, offset + 8 + length));
+    offset += length + 12;
+  }
+
+  const raw = inflateSync(Buffer.concat(compressed));
+  const stride = width * 4;
+  const rowSize = stride + 1;
+  const pixels = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * rowSize];
+    for (let x = 0; x < stride; x += 1) {
+      const source = raw[y * rowSize + 1 + x];
+      const left = x >= 4 ? pixels[y * stride + x - 4] : 0;
+      const above = y > 0 ? pixels[(y - 1) * stride + x] : 0;
+      const upperLeft = y > 0 && x >= 4 ? pixels[(y - 1) * stride + x - 4] : 0;
+      const value = filter === 0 ? source
+        : filter === 1 ? (source + left) & 0xff
+          : filter === 2 ? (source + above) & 0xff
+            : filter === 3 ? (source + Math.floor((left + above) / 2)) & 0xff
+              : (source + paeth(left, above, upperLeft)) & 0xff;
+      pixels[y * stride + x] = value;
+    }
+  }
+
+  const offset = (targetY * width + targetX) * 4;
+  return [...pixels.subarray(offset, offset + 4)];
+}
 
 test('trackingKey separates site and post id', () => {
   assert.notEqual(trackingKey('ab', 'c'), trackingKey('a', 'bc'));
@@ -30,23 +79,30 @@ test('button view models use requested labels', () => {
   assert.deepEqual(notificationButtonViewModel('automatic'), { label: '自動通知', pressed: true, disabled: true });
 });
 
-test('通知ボタンは音声アイコン画像と状態別クラスを使う', async () => {
+test('通知ボタンはベルアイコン画像と状態別クラスを使う', async () => {
   const { readFile } = await import('node:fs/promises');
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
   const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 
-  assert.match(main, /notification-audio\.png/u);
+  assert.match(main, /notification-bell\.png/u);
   assert.match(main, /className = `notification-icon is-\$\{mode\}`/u);
   assert.match(style, /\.post-notification-button\.is-manual[\s\S]*?color:/u);
   assert.match(style, /\.post-notification-button\.is-automatic[\s\S]*?color:/u);
 });
 
-test('通知の追跡状態でスピーカーPNGの色を切り替える', async () => {
+test('通知の追跡状態でベルPNGの色を切り替える', async () => {
   const { readFile } = await import('node:fs/promises');
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
 
-  assert.match(main, /notification-audio-active\.png/u);
+  assert.match(main, /notification-bell-active\.png/u);
   assert.match(main, /mode === 'off' \? NOTIFICATION_ICON_URL : NOTIFICATION_ICON_ACTIVE_URL/u);
+});
+
+test('OFFのベルアイコンは中央が透明な輪郭である', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const icon = await readFile(new URL('../public/icons/notification-bell.png', import.meta.url));
+
+  assert.equal(pngRgbaPixel(icon, 32, 32)[3], 0);
 });
 
 test('audio mime types cover supported picker extensions', () => {
