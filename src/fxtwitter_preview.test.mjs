@@ -123,3 +123,15 @@ test('FxTwitter動画サムネイルは共通サイズを高さの上限に使�
   assert.match(videoRule, /max-height:\s*var\(--fxtwitter-video-thumbnail-size-px\);/u);
   assert.doesNotMatch(videoRule, /reader-image-max-height/u);
 });
+
+test('FxTwitterのサムネイル枠はリンクの未訪問・訪問済み色を使う', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const photoRule = style.match(/\.fxtwitter-preview-photo\s*\{[^}]*\}/u)?.[0] ?? '';
+  const videoLinkRule = style.match(/\.fxtwitter-preview-video-link\s*\{[^}]*\}/u)?.[0] ?? '';
+
+  assert.match(photoRule, /border:\s*1px\s+solid\s+var\(--post-link-unvisited-color\);/u);
+  assert.match(videoLinkRule, /border:\s*1px\s+solid\s+var\(--post-link-unvisited-color\);/u);
+  assert.match(style, /\.fxtwitter-preview-photo\.link-visited\s*\{[^}]*border-color:\s*var\(--post-link-visited-color\);/u);
+  assert.match(style, /\.fxtwitter-preview-video-link\.link-visited\s*\{[^}]*border-color:\s*var\(--post-link-visited-color\);/u);
+});

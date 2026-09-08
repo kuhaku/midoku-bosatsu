@@ -77,3 +77,12 @@ test('YouTubeプレビューは動画サムネイル共通サイズを縦横の�
   assert.match(thumbnailRule, /max-width:\s*min\(100%,\s*var\(--youtube-video-thumbnail-size-px\)\);/u);
   assert.match(thumbnailRule, /max-height:\s*var\(--youtube-video-thumbnail-size-px\);/u);
 });
+
+test('YouTubeサムネイル枠はリンクの未訪問・訪問済み色を使う', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const linkRule = style.match(/\.youtube-preview-link\s*\{[^}]*\}/u)?.[0] ?? '';
+
+  assert.match(linkRule, /border:\s*1px\s+solid\s+var\(--post-link-unvisited-color\);/u);
+  assert.match(style, /\.youtube-preview-link\.link-visited\s*\{[^}]*border-color:\s*var\(--post-link-visited-color\);/u);
+});

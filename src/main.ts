@@ -2236,6 +2236,7 @@ function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
       image.decoding = 'async';
       image.referrerPolicy = 'no-referrer';
       image.dataset.externalUrl = imageUrl;
+      if (visitedUrls.has(imageUrl)) image.classList.add('link-visited');
       media.append(image);
     }
     const statusUrl = safeHttpUrl(preview.statusUrl, undefined);
@@ -2255,7 +2256,7 @@ function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
         continue;
       }
       const link = createExternalLink(statusUrl, '');
-      link.className = 'fxtwitter-preview-video-link';
+      link.classList.add('fxtwitter-preview-video-link');
       link.title = 'Xで動画を見る';
       const label = document.createElement('span');
       label.className = 'fxtwitter-preview-video-label';
@@ -2308,6 +2309,7 @@ function appendYouTubePreviews(body: HTMLElement): void {
     playLink.className = 'youtube-preview-link';
     playLink.href = reference.url;
     playLink.dataset.externalUrl = reference.url;
+    if (visitedUrls.has(reference.url)) playLink.classList.add('link-visited');
     playLink.title = 'YouTubeで動画を再生';
     const thumbnail = document.createElement('img');
     thumbnail.className = 'youtube-preview-thumbnail';
