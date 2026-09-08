@@ -3694,6 +3694,7 @@ async function submitPostForm(
     // 投稿先HTMLにエラーメッセージが見つからなければ投稿成功扱いにし、
     // レスポンス画面へ遷移せずそのまま投稿オーバーレイを閉じる。
     if (!result.error_message.trim()) {
+      if (kind === 'follow') await reloadUnreadAfterFollowPost(siteId);
       await refreshReplyNotificationUiState();
       renderPosts();
       if (result.tracking_error.trim()) setReplyNotificationFooterError(result.tracking_error);
@@ -5159,6 +5160,24 @@ async function playReplyNotificationSound(): Promise<void> {
 async function fetchOneSite(site: SiteConfig, mode: 'initial' | 'reload'): Promise<SiteFetchResult> {
   const command = mode === 'initial' ? 'fetch_site_initial' : 'reload_site_unread';
   return invoke<SiteFetchResult>(command, { siteId: site.id });
+}
+
+// フォロー投稿直後は通常の30秒クールダウンを待たず、投稿先BBSだけを再取得する。
+async function reloadUnreadAfterFollowPost(siteId: string): Promise<void> {
+  try {
+    const result = await invoke<SiteFetchResult>('reload_site_unread', { siteId });
+    initializedSites.add(siteId);
+    mergePosts(result.posts);
+    siteFetchErrors.delete(siteId);
+    lastBbsDataFetchedAtMs = Date.now();
+    scheduleUnreadReloadButtonUpdate();
+  } catch (error) {
+    siteFetchErrors.set(siteId, {
+      siteName: siteNames.get(siteId) ?? siteId,
+      message: String(error),
+    });
+    renderFooterErrors();
+  }
 }
 
 async function runFetchCycle(forceInitial = false): Promise<void> {
