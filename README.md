@@ -27,19 +27,19 @@
 
 未読菩薩配布ページはこちら: https://github.com/kuhaku/midoku-bosatsu/releases
 
-"draft" とついてないものを推奨します。
+"Latest" とついてるものを推奨します。
 
 ### Windows
 
-- ファイル名に `windows` とついてるやつ
+- ファイル名に `x64-setup.exe` や `windows-x64.zip` とついてるやつ
 
 > [!WARNING]
 > インストーラーを使いたくない用にZIP版を用意してますが、Windowsの仕様でアプリの自動アップデート機能はZIP版では使えません。
 
 ### macOS
 
-- Apple silicon: ファイル名に `darwin_aarch64` とついてるやつ
-- Intel: ファイル名に `darwin_x64` とついてるやつ
+- Apple silicon: ファイル名に `aarch64.dmg` とついてるやつ
+- Intel: ファイル名に `x64.dmg` とついてるやつ
 
 > [!IMPORTANT]
 > Apple税を払ってないのでApple Developer証明書がありません(;´Д`)
@@ -61,10 +61,20 @@ xattr -cr /Applications/midoku-bosatsu.app
 
 ### Linux
 
-- ファイル名に `linux` とついてるやつ (環境に合ったものを選んでください)
+- 拡張子が `.deb` や `.rpm` や `.AppImage` ももの (環境に合ったものを選んでください)
 
-おすすめは `.AppImage` 形式のファイルに実行権限をつける方法です。
+#### 初心者向け
+
+初心者におすすめの方法は `.AppImage` 形式のファイルに実行権限をつける方法です。
 
 ```sh
 chmod 755 midoku-bosatsu*.AppImage
+```
+
+#### Debian 系
+
+拡張子が `.deb` のものをダウンロードして下記コマンドでインストール。
+
+```sh
+sudo apt install ./Downloads/midoku-bosatsu_*_amd64.deb
 ```
