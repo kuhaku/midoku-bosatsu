@@ -15,6 +15,7 @@ import {
 import { removeTreeEmptyLines } from './tree_body.ts';
 import { buildTreeBodyPrefix } from './tree_prefix.ts';
 import { buildTreeNodePrefixes } from './tree_layout.ts';
+import { shouldKeepTreeQuoteLine } from './tree_quote.ts';
 import { expandNumericCharacterReferences } from './numeric_character_references.ts';
 import {
   notificationButtonMode,
@@ -2480,11 +2481,13 @@ function removeTreeQuoteLine(body: HTMLElement, quote: HTMLElement): void {
   }
 }
 
-function compactTreeQuotedArea(body: HTMLElement): void {
-  // ツリー表示では親子関係そのものが文脈になるため、本文中の引用行はすべて省略する。
+function compactTreeQuotedArea(body: HTMLElement, parentBodyText: string | null): void {
+  // 親本文と同じ引用行はツリーの親子関係で代替できるため省略する。
+  // 親本文にない改変済みの引用行は投稿内容として残す。
   // URL・サムネイル・[詳] が引用行に含まれる場合も行全体を消す。
   for (const quote of Array.from(body.querySelectorAll<HTMLElement>('.post-quote'))) {
     if (!body.contains(quote)) continue;
+    if (parentBodyText !== null && shouldKeepTreeQuoteLine(quote.textContent ?? '', parentBodyText)) continue;
     removeTreeQuoteLine(body, quote);
   }
   trimCompactBodyStart(body);
@@ -2513,7 +2516,11 @@ function compactTreeQuotedArea(body: HTMLElement): void {
   removeTreeEmptyLines(body);
 }
 
-function buildSafePostBody(post: ParsedPost, compactTreeQuotes = false): HTMLElement {
+function buildSafePostBody(
+  post: ParsedPost,
+  compactTreeQuotes = false,
+  parentBodyText: string | null = null,
+): HTMLElement {
   const body = document.createElement('div');
   body.className = compactTreeQuotes ? 'post-body post-body-tree-compact' : 'post-body';
 
@@ -2536,7 +2543,7 @@ function buildSafePostBody(post: ParsedPost, compactTreeQuotes = false): HTMLEle
     appendTextWithQuoteStyling(post.body_text, body, true);
   }
 
-  if (compactTreeQuotes) compactTreeQuotedArea(body);
+  if (compactTreeQuotes) compactTreeQuotedArea(body, parentBodyText);
   applyHighlightToTextNodes(body, highlightBodyRegex);
   appendFxTwitterPreviews(body);
   appendYouTubePreviews(body);
@@ -4036,6 +4043,7 @@ type TreeDisplayPost = DisplayPost & {
   headerPrefix: string;
   bodyPrefix: string;
   hasChildren: boolean;
+  parentPost: ParsedPost | null;
 };
 
 type TreeDisplayGroup = {
@@ -4079,6 +4087,7 @@ function buildTreeDisplayGroups(posts: ParsedPost[]): TreeDisplayGroup[] {
     const byId = new Map(group.map((post) => [post.id, post]));
     const children = new Map<string, ParsedPost[]>();
     const hasParent = new Set<string>();
+    const parentByPostId = new Map<string, ParsedPost>();
 
     for (const post of group) {
       let parent: ParsedPost | undefined;
@@ -4101,6 +4110,7 @@ function buildTreeDisplayGroups(posts: ParsedPost[]): TreeDisplayGroup[] {
       if (siblings) siblings.push(post);
       else children.set(parent.id, [post]);
       hasParent.add(post.id);
+      parentByPostId.set(post.id, parent);
     }
 
     for (const siblings of children.values()) siblings.sort(compareOldestFirst);
@@ -4124,7 +4134,14 @@ function buildTreeDisplayGroups(posts: ParsedPost[]): TreeDisplayGroup[] {
         isLastSibling,
         hasChildren,
       });
-      items.push({ post, depth, headerPrefix, bodyPrefix, hasChildren });
+      items.push({
+        post,
+        depth,
+        headerPrefix,
+        bodyPrefix,
+        hasChildren,
+        parentPost: parentByPostId.get(post.id) ?? null,
+      });
 
       descendants.forEach((child, index) => {
         const childIsLast = index === descendants.length - 1;
@@ -4225,7 +4242,7 @@ function validTreeAuthor(value: string): string | null {
 }
 
 function buildTreeNodeArticle(item: TreeDisplayPost, includePostKey: boolean): HTMLElement {
-  const { post, headerPrefix, bodyPrefix, hasChildren } = item;
+  const { post, headerPrefix, bodyPrefix, hasChildren, parentPost } = item;
   const unread = isPostUnread(post);
   const article = document.createElement('article');
   article.className = unread ? 'post post-tree-node post-unread' : 'post post-tree-node';
@@ -4281,7 +4298,7 @@ function buildTreeNodeArticle(item: TreeDisplayPost, includePostKey: boolean): H
 
   const contentRow = document.createElement('div');
   contentRow.className = hasChildren ? 'tree-post-content-row' : 'tree-post-content-row tree-post-content-row-leaf';
-  const body = buildSafePostBody(post, true);
+  const body = buildSafePostBody(post, true, parentPost?.body_text ?? null);
   // ツリー本文は常にノード記号「■」より全角1文字ぶん右から始める。
   // 縦線もCSSではなく本文各行の文字列として保持し、表示どおりにコピーできるようにする。
   const prefix = buildTreeBodyPrefix(bodyPrefix);
