@@ -25,7 +25,7 @@ test('一般設定のメディア表示を画像表示とSNS表示に分ける',
   assert.match(snsSubsection, /YouTubeリンクをプレビュー表示する/u);
   assert.match(snsSubsection, /Twitter \(X\) の動画の静止画サムネイルサイズ \(px\)/u);
   assert.match(snsSubsection, /id="general-fxtwitter-video-thumbnail-size"/u);
-  assert.match(snsSubsection, /YouTubeの動画の静止画サムネイルサイズ \(px\)/u);
+  assert.match(snsSubsection, /YouTubeの静止画サムネイルサイズ \(px\)/u);
   assert.match(snsSubsection, /id="general-youtube-video-thumbnail-size"/u);
   assert.match(snsSubsection, /id="general-fxtwitter-video-thumbnail-size-settings"/u);
   assert.match(snsSubsection, /id="general-youtube-video-thumbnail-size-settings"/u);

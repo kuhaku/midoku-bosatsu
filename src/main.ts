@@ -669,11 +669,7 @@ app.innerHTML = `
                 <div class="settings-grid">
                   <label class="settings-check settings-check-card">
                     <input id="general-show-fxtwitter-previews" type="checkbox"> Twitter (X) のリンクをプレビュー表示する
-                    <small>ONにするとFxTwitterを使ってプレビュー表示します。</small>
-                  </label>
-                  <label class="settings-check settings-check-card">
-                    <input id="general-show-youtube-previews" type="checkbox"> YouTubeリンクをプレビュー表示する
-                    <small>ONにすると投稿内のYouTube動画を埋め込み表示します。</small>
+                    <small>ONにするとFxTwitterを使ってTwitterのリンクをプレビュー表示します。</small>
                   </label>
                   <div id="general-fxtwitter-video-thumbnail-size-settings">
                     <label>Twitter (X) の動画の静止画サムネイルサイズ (px)
@@ -681,8 +677,12 @@ app.innerHTML = `
                       <small>横と高さのうち大きい方を制限します。初期値は200pxです。</small>
                     </label>
                   </div>
+                  <label class="settings-check settings-check-card">
+                    <input id="general-show-youtube-previews" type="checkbox"> YouTubeリンクをプレビュー表示する
+                    <small>ONにすると投稿内のYouTubeの静止画サムネイルを表示します。</small>
+                  </label>
                   <div id="general-youtube-video-thumbnail-size-settings">
-                    <label>YouTubeの動画の静止画サムネイルサイズ (px)
+                    <label>YouTubeの静止画サムネイルサイズ (px)
                       <input id="general-youtube-video-thumbnail-size" type="number" min="1" max="10000" step="1">
                       <small>横と高さのうち大きい方を制限します。初期値は400pxです。</small>
                     </label>
@@ -710,13 +710,13 @@ app.innerHTML = `
             <summary class="settings-section-heading">
               <div>
                 <h3>レス通知</h3>
-                <p class="settings-section-description">未読菩薩で追跡している投稿への返信を右下トースト通知と通知音で知らせます。</p>
+                <p class="settings-section-description">未読菩薩で追跡している投稿への返信を右下トースト通知や通知音で知らせます。</p>
               </div>
             </summary>
             <div class="settings-grid reply-notification-settings-grid">
               <label class="settings-check settings-check-card settings-span-2">
                 <input id="general-reply-notification-enabled" type="checkbox"> レス通知をする（右下トースト通知）
-                <small>初期値はOFFです。ONのとき各投稿に「通知」ボタンを表示します。</small>
+                <small>ONのとき各投稿に「通知」ボタンを表示します。</small>
               </label>
               <div id="general-reply-notification-options" class="settings-grid settings-span-2">
                 <label class="settings-check settings-check-card settings-span-2">
@@ -796,7 +796,7 @@ app.innerHTML = `
             <summary class="settings-section-heading">
               <div>
                 <h3>観賞用自動モード</h3>
-                <p class="settings-section-description">未読投稿を自動で順番に表示します。</p>
+                <p class="settings-section-description">未読投稿を自動で順番に表示します。ぼけーっと眺める用モードです。</p>
               </div>
             </summary>
             <div class="settings-grid">
