@@ -15,7 +15,7 @@ import {
 import { removeTreeEmptyLines } from './tree_body.ts';
 import { buildTreeBodyPrefix } from './tree_prefix.ts';
 import { buildTreeNodePrefixes } from './tree_layout.ts';
-import { shouldKeepTreeQuoteLine } from './tree_quote.ts';
+import { shouldKeepTreeQuoteLine, treeQuoteSourceText } from './tree_quote.ts';
 import { expandNumericCharacterReferences } from './numeric_character_references.ts';
 import {
   notificationButtonMode,
@@ -1576,15 +1576,18 @@ function createExternalLink(url: string, label: string): HTMLAnchorElement {
 function appendImageDetailLink(imageUrl: string, target: Node): void {
   if (!(config?.global.show_image_detail_link ?? true) || !isLikelyImageUrl(imageUrl)) return;
 
+  const detail = document.createElement('span');
+  detail.className = 'image-detail-link';
+  detail.dataset.generatedImageDetail = 'true';
+  detail.appendChild(document.createTextNode('['));
+
   const lensUrl = `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(imageUrl)}`;
-  target.appendChild(document.createTextNode('['));
-
   const detailLink = createExternalLink(lensUrl, '詳');
-  detailLink.classList.add('image-detail-link');
   detailLink.title = `Googleレンズで画像を調べる: ${imageUrl}`;
-  target.appendChild(detailLink);
+  detail.appendChild(detailLink);
 
-  target.appendChild(document.createTextNode(']'));
+  detail.appendChild(document.createTextNode(']'));
+  target.appendChild(detail);
 }
 
 function appendAutoImageThumbnail(url: string, target: Node): void {
@@ -2464,23 +2467,61 @@ function isTreeQuoteLineSeparator(node: Node): boolean {
   return node.nodeType === Node.TEXT_NODE && /[\r\n]/.test(node.textContent ?? '');
 }
 
+function nextTreeQuoteLineSeparator(body: HTMLElement, quote: HTMLElement): Node | null {
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  let reachedQuote = false;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node === quote) {
+      reachedQuote = true;
+      continue;
+    }
+    if (reachedQuote && isTreeQuoteLineSeparator(node)) return node;
+  }
+  return null;
+}
+
+function sourceTextOfTreeQuoteLine(body: HTMLElement, quote: HTMLElement): string {
+  const segments: Array<{ text: string; generated: boolean; endsLine?: boolean }> = [];
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  let reachedQuote = false;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node === quote) {
+      reachedQuote = true;
+      continue;
+    }
+    if (!reachedQuote) continue;
+    if (isTreeQuoteLineSeparator(node)) {
+      segments.push({ text: '', generated: false, endsLine: true });
+      break;
+    }
+    if (node instanceof Text) {
+      segments.push({
+        text: node.data,
+        generated: node.parentElement?.closest('[data-generated-image-detail]') !== null,
+      });
+    }
+  }
+  return treeQuoteSourceText(segments);
+}
+
 function removeTreeQuoteLine(body: HTMLElement, quote: HTMLElement): void {
   // 引用本文内のURLはサニタイズ時にサムネイル・[詳]・A要素へ分割される。
-  // .post-quote だけではURL側が残るため、引用開始位置から行末までをまとめて削除する。
-  let lineNode: Node = quote;
-  while (lineNode.parentNode && lineNode.parentNode !== body) {
-    lineNode = lineNode.parentNode;
-  }
-  if (lineNode.parentNode !== body) return;
+  // そのため、DOMの親子構造ではなく文書順の行末までを削除範囲にする。
+  const range = document.createRange();
+  range.setStartBefore(quote);
 
-  let node: Node | null = lineNode;
-  while (node) {
-    const next: Node | null = node.nextSibling;
-    const reachedLineEnd = isTreeQuoteLineSeparator(node);
-    node.parentNode?.removeChild(node);
-    if (reachedLineEnd) break;
-    node = next;
+  const separator = nextTreeQuoteLineSeparator(body, quote);
+  if (separator instanceof HTMLBRElement) {
+    range.setEndAfter(separator);
+  } else if (separator instanceof Text) {
+    const lineEnd = separator.data.search(/[\r\n]/u);
+    range.setEnd(separator, lineEnd >= 0 ? lineEnd + 1 : separator.data.length);
+  } else {
+    range.setEnd(body, body.childNodes.length);
   }
+  range.deleteContents();
 }
 
 function compactTreeQuotedArea(body: HTMLElement, parentBodyText: string | null): void {
@@ -2489,7 +2530,7 @@ function compactTreeQuotedArea(body: HTMLElement, parentBodyText: string | null)
   // URL・サムネイル・[詳] が引用行に含まれる場合も行全体を消す。
   for (const quote of Array.from(body.querySelectorAll<HTMLElement>('.post-quote'))) {
     if (!body.contains(quote)) continue;
-    if (parentBodyText !== null && shouldKeepTreeQuoteLine(quote.textContent ?? '', parentBodyText)) continue;
+    if (parentBodyText !== null && shouldKeepTreeQuoteLine(sourceTextOfTreeQuoteLine(body, quote), parentBodyText)) continue;
     removeTreeQuoteLine(body, quote);
   }
   trimCompactBodyStart(body);
