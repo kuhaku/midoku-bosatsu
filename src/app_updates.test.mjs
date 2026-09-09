@@ -9,6 +9,7 @@ import {
   createStartupUpdateSequence,
   installAppUpdate,
   formatUpdateNotes,
+  getUpdateNotes,
   resetAppUpdateStateForTests,
 } from './app_updates.ts';
 
@@ -33,6 +34,20 @@ test('formatUpdateNotesは非空のノートを保持しつつ長文を省略す
   assert.ok(formatted.endsWith('…'));
   assert.ok(formatted.length < longNotes.length);
   assert.ok(formatted.length <= 241);
+});
+
+test('getUpdateNotesはlatest.jsonのnotesをupdaterのbodyより優先する', () => {
+  const update = {
+    version: '0.5.5',
+    body: '古い形式のリリースノート',
+    rawJson: {
+      notes: 'latest.json のリリースノート',
+    },
+    download: async () => {},
+    install: async () => {},
+  };
+
+  assert.equal(getUpdateNotes(update), 'latest.json のリリースノート');
 });
 
 test('checkForAppUpdateは確認中と完了後の両方で一度しか走らない', async () => {

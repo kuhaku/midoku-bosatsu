@@ -9,6 +9,7 @@ import {
   createStartupUpdateSequence,
   formatAppUpdateDate,
   formatUpdateNotes,
+  getUpdateNotes,
   installAppUpdate,
   type AppUpdate,
 } from './app_updates.ts';
@@ -1245,7 +1246,7 @@ async function checkForManualUpdate(): Promise<void> {
     availableAppUpdate = update;
     availableAppUpdateVersion.textContent = `新しいバージョン: v${update.version}`;
     availableAppUpdateDate.textContent = formatAppUpdateDate(update.date);
-    availableAppUpdateNotes.textContent = formatUpdateNotes(update.body);
+    availableAppUpdateNotes.textContent = formatUpdateNotes(getUpdateNotes(update));
     availableAppUpdateElement.hidden = false;
     installAppUpdateButton.disabled = false;
     showAppUpdateStatus('アップデートが見つかりました。');

@@ -45,5 +45,5 @@ test('バージョンタブは見つかった更新のリリースノートを�
 
   assert.ok(versionSettings, 'バージョン設定の範囲が見つかりません');
   assert.match(versionSettings, /id="available-app-update-notes"/u);
-  assert.match(mainSource, /availableAppUpdateNotes\.textContent = formatUpdateNotes\(update\.body\);/u);
+  assert.match(mainSource, /availableAppUpdateNotes\.textContent = formatUpdateNotes\(getUpdateNotes\(update\)\);/u);
 });
