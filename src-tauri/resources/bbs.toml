@@ -6,7 +6,7 @@ config_version = 1
 # -----------------------------------------------------------------------------
 [[sites]]
 id = "misao"
-name = "あやしいわーるど＠みさお"
+name = "＠みさお"
 enabled = true
 encoding = "shift_jis"
 user_agent = "Midoku Bosatsu"
@@ -46,7 +46,7 @@ include_hidden = true
 # -----------------------------------------------------------------------------
 [[sites]]
 id = "honten-taihi"
-name = "あやしいわーるど＠本店退避"
+name = "＠本店退避"
 enabled = true
 encoding = "shift_jis"
 user_agent = "Midoku Bosatsu"
@@ -86,7 +86,7 @@ include_hidden = true
 # -----------------------------------------------------------------------------
 [[sites]]
 id = "okome-znti"
-name = "あやしいわーるど＠おこめ.暫暫定"
+name = "＠おこめ.暫暫定"
 enabled = true
 encoding = "utf-8"
 user_agent = "Midoku Bosatsu"
