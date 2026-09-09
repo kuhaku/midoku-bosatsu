@@ -6,15 +6,15 @@
   --post-font-size: 16px;
 
   --post-background-color: #004040;
-  --post-text-color: #ffffff;
+  --post-text-color: #f8f9fa;
   --post-quote-color: #d1d1d1;
   --post-link-unvisited-color: #eeffee;
   --post-link-hover-color: #ea4335;
   --post-link-visited-color: #dddddd;
-  --post-author-color: #ffffff;
-  --post-subject-color: #ffffff;
+  --post-author-color: #f8f9fa;
+  --post-subject-color: #f8f9fa;
   --post-unread-background-color: #195353;
-  --unread-badge-text-color: #ffffff;
+  --unread-badge-text-color: #f8f9fa;
   --unread-badge-background-color: #195353;
   --post-date-color: #b9cccc;
   --post-border-color: #2f6262;
@@ -34,7 +34,7 @@
 
   /* システムUIの固定パレット。投稿色とは独立している。 */
   --color-bg: #004040;
-  --color-text: #ffffff;
+  --color-text: #f8f9fa;
   --color-panel: #064747;
   --color-panel-strong: #003737;
   --color-panel-soft: #0c5050;
@@ -309,7 +309,7 @@ button, input, select, textarea { font: inherit; }
 
 .text-search-match.is-current {
   background: #ff9f43;
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--color-text);
   outline-offset: 1px;
 }
 
@@ -444,7 +444,7 @@ button:disabled { cursor: default; opacity: .45; }
 
 .tree-save-button.is-saved {
   background: #2d7777;
-  color: #ffffff;
+  color: var(--color-text);
 }
 
 .tree-save-button.is-saved:hover:not(:disabled) {
@@ -1053,15 +1053,15 @@ button:disabled { cursor: default; opacity: .45; }
   padding: 0;
   border-color: #dadce0;
   border-radius: 50%;
-  background: #f8f9fa;
+  background: var(--color-text);
   color: #004040;
   place-items: center;
   box-shadow: 0 5px 18px rgba(0, 0, 0, .32);
 }
 
 .fixed-new-post-button:hover:not(:disabled) {
-  border-color: #dadce0;
-  background: #e8eaed;
+  border-color: #babcc0;
+  background: #ced0d3;
 }
 
 .fixed-new-post-button svg {
@@ -1446,7 +1446,7 @@ button:disabled { cursor: default; opacity: .45; }
 .discard-button {
   border-color: #ff7a7a;
   background: #b51f1f;
-  color: #ffffff;
+  color: var(--color-text);
   font-weight: 700;
 }
 .discard-button:hover:not(:disabled) {
@@ -2386,7 +2386,7 @@ button:disabled { cursor: default; opacity: .45; }
   font-weight: 700;
   border-color: #8fd1a5;
   background: #246d42;
-  color: #ffffff;
+  color: var(--color-text);
 }
 
 .post-notification-button.is-manual:hover:not(:disabled) {
@@ -2396,7 +2396,7 @@ button:disabled { cursor: default; opacity: .45; }
 .post-notification-button.is-automatic {
   border-color: #8dbbdd;
   background: #245b78;
-  color: #ffffff;
+  color: var(--color-text);
 }
 
 .post-notification-button.is-automatic:disabled {
@@ -2427,7 +2427,7 @@ button:disabled { cursor: default; opacity: .45; }
 .post-save-button.is-saved {
   border-color: #b9dddd;
   background: #2d7777;
-  color: #ffffff;
+  color: var(--color-text);
 }
 
 .post-save-button.is-saved:hover:not(:disabled) {

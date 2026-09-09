@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const mainSource = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
+const bundledReaderStyle = readFileSync(new URL('../src-tauri/resources/reader-style.css', import.meta.url), 'utf8');
+const appStyle = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+
+test('初期の投稿文字色は明るいグレーに統一されている', () => {
+  for (const source of [bundledReaderStyle, appStyle]) {
+    assert.match(source, /--post-text-color:\s*#f8f9fa;/u);
+    assert.match(source, /--post-author-color:\s*#f8f9fa;/u);
+    assert.match(source, /--post-subject-color:\s*#f8f9fa;/u);
+    assert.match(source, /--unread-badge-text-color:\s*#f8f9fa;/u);
+  }
+});
 
 test('表示スタイルCSSを設定画面から入出力およびリセットできる', () => {
   const configPanel = mainSource.match(

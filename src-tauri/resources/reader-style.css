@@ -7,15 +7,15 @@
   --post-font-size: 16px;
 
   --post-background-color: #004040;
-  --post-text-color: #ffffff;
+  --post-text-color: #f8f9fa;
   --post-quote-color: #d1d1d1;
   --post-link-unvisited-color: #eeffee;
   --post-link-hover-color: #ea4335;
   --post-link-visited-color: #dddddd;
-  --post-author-color: #ffffff;
-  --post-subject-color: #ffffff;
+  --post-author-color: #f8f9fa;
+  --post-subject-color: #f8f9fa;
   --post-unread-background-color: #195353;
-  --unread-badge-text-color: #ffffff;
+  --unread-badge-text-color: #f8f9fa;
   --unread-badge-background-color: #195353;
 
   --post-date-color: #b9cccc;
