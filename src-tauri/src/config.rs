@@ -852,6 +852,75 @@ pub fn load_reader_style(app: &AppHandle) -> Result<ReaderStyleConfig, String> {
     parse_reader_style(&source)
 }
 
+pub(crate) fn validate_reader_style_source(source: &str) -> Result<ReaderStyleConfig, String> {
+    let style = parse_reader_style(source)?;
+    validate_reader_style(&style)?;
+    Ok(style)
+}
+
+pub fn export_reader_style_file(app: &AppHandle, destination: &Path) -> Result<(), String> {
+    let paths = ensure_user_config_paths(app)?;
+    fs::copy(&paths.style, destination).map_err(|e| {
+        format!(
+            "{} のエクスポートに失敗しました ({}): {e}",
+            STYLE_FILE,
+            destination.display()
+        )
+    })?;
+    Ok(())
+}
+
+pub fn import_reader_style_file(
+    app: &AppHandle,
+    source_path: &Path,
+) -> Result<ReaderStyleConfig, String> {
+    let paths = ensure_user_config_paths(app)?;
+    let source = fs::read_to_string(source_path).map_err(|e| {
+        format!(
+            "{} の読み込みに失敗しました ({}): {e}",
+            STYLE_FILE,
+            source_path.display()
+        )
+    })?;
+    let style = validate_reader_style_source(&source)?;
+    fs::write(&paths.style, source).map_err(|e| {
+        format!(
+            "{} のインポートに失敗しました ({}): {e}",
+            STYLE_FILE,
+            paths.style.display()
+        )
+    })?;
+    Ok(style)
+}
+
+fn reset_reader_style_from_source(
+    source: &str,
+    target: &Path,
+) -> Result<ReaderStyleConfig, String> {
+    let style = validate_reader_style_source(source)?;
+    fs::write(target, source).map_err(|e| {
+        format!(
+            "{} のリセットに失敗しました ({}): {e}",
+            STYLE_FILE,
+            target.display()
+        )
+    })?;
+    Ok(style)
+}
+
+pub fn reset_reader_style_to_bundled(app: &AppHandle) -> Result<ReaderStyleConfig, String> {
+    let paths = ensure_user_config_paths(app)?;
+    let bundled = bundled_config_path(app, STYLE_FILE)?;
+    let source = fs::read_to_string(&bundled).map_err(|e| {
+        format!(
+            "bundled {} の読み込みに失敗しました ({}): {e}",
+            STYLE_FILE,
+            bundled.display()
+        )
+    })?;
+    reset_reader_style_from_source(&source, &paths.style)
+}
+
 fn validate_font_family(label: &str, family: &str) -> Result<(), String> {
     let family = family.trim();
     if family.is_empty() {
@@ -1115,6 +1184,41 @@ reply_notification_sound_enabled = true
         assert_eq!(
             fs::read_to_string(&target).expect("reset target should be readable"),
             include_str!("../resources/global.toml")
+        );
+        fs::remove_file(target).expect("test target should be removable");
+    }
+
+    #[test]
+    fn reader_style_import_rejects_invalid_css_variable_values() {
+        let error = validate_reader_style_source(
+            r#":root {
+  --system-font-family: system-ui;
+  --system-font-size: 16px;
+  --post-font-family: monospace;
+  --post-font-size: 16px;
+  --post-background-color: not-a-color;
+}"#,
+        )
+        .expect_err("invalid display style must be rejected");
+
+        assert!(error.contains("通常の背景色"));
+    }
+
+    #[test]
+    fn reader_style_reset_overwrites_the_target_with_the_bundled_style() {
+        let target = std::env::temp_dir().join(format!(
+            "midoku-bosatsu-style-reset-{}-reader-style.css",
+            std::process::id()
+        ));
+        fs::write(&target, ":root { --post-background-color: #000000; }")
+            .expect("test target should be writable");
+
+        reset_reader_style_from_source(include_str!("../resources/reader-style.css"), &target)
+            .expect("bundled display style should reset the target");
+
+        assert_eq!(
+            fs::read_to_string(&target).expect("reset target should be readable"),
+            include_str!("../resources/reader-style.css")
         );
         fs::remove_file(target).expect("test target should be removable");
     }

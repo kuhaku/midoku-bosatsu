@@ -66,6 +66,24 @@ fn export_config_file(
 }
 
 #[tauri::command]
+fn export_reader_style_file(app: AppHandle, destination_path: String) -> Result<(), String> {
+    config::export_reader_style_file(&app, Path::new(&destination_path))
+}
+
+#[tauri::command]
+fn import_reader_style_file(
+    app: AppHandle,
+    source_path: String,
+) -> Result<ReaderStyleConfig, String> {
+    config::import_reader_style_file(&app, Path::new(&source_path))
+}
+
+#[tauri::command]
+fn reset_reader_style_to_bundled(app: AppHandle) -> Result<ReaderStyleConfig, String> {
+    config::reset_reader_style_to_bundled(&app)
+}
+
+#[tauri::command]
 async fn import_config_file(
     app: AppHandle,
     state: State<'_, ReaderState>,
@@ -459,8 +477,11 @@ pub fn run() {
             get_reader_config,
             get_post_form_encoding_warning,
             export_config_file,
+            export_reader_style_file,
             import_config_file,
+            import_reader_style_file,
             reset_config_to_bundled,
+            reset_reader_style_to_bundled,
             save_bbs_config,
             get_reader_style,
             fetch_fxtwitter_status,

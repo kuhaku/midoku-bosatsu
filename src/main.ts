@@ -996,7 +996,7 @@ app.innerHTML = `
       <header class="bbs-settings-header">
         <div>
           <h2>設定のインポート/エクスポート</h2>
-          <p>一般設定とBBS設定のファイルを個別にインポート/エクスポートできます。</p>
+          <p>一般設定、BBS設定、表示スタイルCSSのファイルを個別にインポート/エクスポートできます。</p>
         </div>
       </header>
       <div class="general-settings-content">
@@ -1022,6 +1022,18 @@ app.innerHTML = `
           <div class="settings-inline-actions">
             <button id="bbs-export-config-button" type="button">BBS設定をファイルにエクスポート</button>
             <button id="bbs-import-config-button" type="button">BBS設定をファイルからインポート</button>
+          </div>
+        </section>
+        <section class="settings-section config-file-settings-section">
+          <div class="settings-section-heading">
+            <div>
+              <h3>表示スタイルCSS</h3>
+              <p class="settings-section-description">reader-style.cssをファイルとして保存したり、別の表示スタイルCSSを読み込んだりできます。</p>
+            </div>
+          </div>
+          <div class="settings-inline-actions">
+            <button id="reader-style-export-config-button" type="button">表示スタイルCSSをファイルにエクスポート</button>
+            <button id="reader-style-import-config-button" type="button">表示スタイルCSSをファイルからインポート</button>
           </div>
         </section>
       </div>
@@ -1053,6 +1065,11 @@ app.innerHTML = `
                 <h3>BBS設定のリセット</h3>
                 <p class="settings-section-description">BBS設定をアプリ同梱のbbs.tomlの内容に戻し、取得先を再読み込みします。</p>
                 <button id="reset-bbs-settings" class="reset-data-button" type="button">BBS設定をリセット</button>
+              </section>
+              <section class="settings-section reset-data-section">
+                <h3>表示スタイルCSSのリセット</h3>
+                <p class="settings-section-description">reader-style.cssをアプリ同梱の初期スタイルに戻します。</p>
+                <button id="reset-reader-style" class="reset-data-button" type="button">表示スタイルCSSをリセット</button>
               </section>
               <section class="settings-section reset-data-section">
                 <h3>未読状態リセット</h3>
@@ -1273,6 +1290,7 @@ const resetRemoveReplyNotificationsButton = mustElement<HTMLButtonElement>('#res
 const resetRemoveHiddenThreadsButton = mustElement<HTMLButtonElement>('#reset-remove-hidden-threads');
 const resetGeneralSettingsButton = mustElement<HTMLButtonElement>('#reset-general-settings');
 const resetBbsSettingsButton = mustElement<HTMLButtonElement>('#reset-bbs-settings');
+const resetReaderStyleButton = mustElement<HTMLButtonElement>('#reset-reader-style');
 const resetUnreadStateButton = mustElement<HTMLButtonElement>('#reset-unread-state');
 const resetPostLogButton = mustElement<HTMLButtonElement>('#reset-post-log');
 const resetSettingsMessage = mustElement<HTMLDivElement>('#reset-settings-message');
@@ -1330,6 +1348,8 @@ const generalDiscardButton = mustElement<HTMLButtonElement>('#general-discard-bu
 const generalSaveButton = mustElement<HTMLButtonElement>('#general-save-button');
 const generalExportConfigButton = mustElement<HTMLButtonElement>('#general-export-config-button');
 const generalImportConfigButton = mustElement<HTMLButtonElement>('#general-import-config-button');
+const readerStyleExportConfigButton = mustElement<HTMLButtonElement>('#reader-style-export-config-button');
+const readerStyleImportConfigButton = mustElement<HTMLButtonElement>('#reader-style-import-config-button');
 
 type ColorInputPair = { picker: HTMLInputElement; text: HTMLInputElement };
 const postColorInputs = new Map<StyleColorKey, ColorInputPair>();
@@ -4765,6 +4785,7 @@ function fileNameFromPath(path: string): string {
 }
 
 const tomlFileFilter = [{ name: 'TOML設定ファイル', extensions: ['toml'] }];
+const cssFileFilter = [{ name: 'CSSファイル', extensions: ['css'] }];
 
 async function exportSettingsFile(fileName: 'global.toml' | 'bbs.toml'): Promise<void> {
   try {
@@ -4828,6 +4849,50 @@ async function importSettingsFile(fileName: 'global.toml' | 'bbs.toml'): Promise
   } catch (error) {
     const message = `${fileName}をインポートできませんでした: ${String(error)}`;
     showConfigFileSettingsMessage(message, true);
+  }
+}
+
+async function exportReaderStyleFile(): Promise<void> {
+  try {
+    const destinationPath = await save({
+      title: 'reader-style.cssをエクスポート',
+      defaultPath: 'reader-style.css',
+      filters: cssFileFilter,
+    });
+    if (typeof destinationPath !== 'string' || !destinationPath.trim()) return;
+    await invoke('export_reader_style_file', { destinationPath });
+    showConfigFileSettingsMessage('reader-style.cssをエクスポートしました。');
+  } catch (error) {
+    showConfigFileSettingsMessage(`reader-style.cssをエクスポートできませんでした: ${String(error)}`, true);
+  }
+}
+
+function applyImportedReaderStyle(style: ReaderStyleConfig): void {
+  savedReaderStyle = style;
+  generalDraftStyle = structuredClone(style);
+  applyReaderStyle(style);
+  renderGeneralSettingsForm();
+  setGeneralSettingsDirty(false);
+}
+
+async function importReaderStyleFile(): Promise<void> {
+  if (generalSettingsDirty) {
+    showGeneralSettingsMessage('未保存の一般設定があるため、先に保存または破棄してください。', true);
+    return;
+  }
+  try {
+    const sourcePath = await open({
+      multiple: false,
+      directory: false,
+      title: 'reader-style.cssをインポート',
+      filters: cssFileFilter,
+    });
+    if (typeof sourcePath !== 'string' || !sourcePath.trim()) return;
+    const style = await invoke<ReaderStyleConfig>('import_reader_style_file', { sourcePath });
+    applyImportedReaderStyle(style);
+    showConfigFileSettingsMessage('reader-style.cssをインポートして反映しました。');
+  } catch (error) {
+    showConfigFileSettingsMessage(`reader-style.cssをインポートできませんでした: ${String(error)}`, true);
   }
 }
 
@@ -6016,6 +6081,20 @@ async function resetConfigToBundled(fileName: 'global.toml' | 'bbs.toml'): Promi
   }
 }
 
+async function resetReaderStyleToBundled(): Promise<void> {
+  if (generalSettingsDirty) {
+    showGeneralSettingsMessage('未保存の一般設定があるため、先に保存または破棄してください。', true);
+    return;
+  }
+  try {
+    const style = await invoke<ReaderStyleConfig>('reset_reader_style_to_bundled');
+    applyImportedReaderStyle(style);
+    showResetSettingsMessage('表示スタイルCSSをリセットしました。');
+  } catch (error) {
+    showResetSettingsMessage(`表示スタイルCSSをリセットできませんでした: ${String(error)}`, true);
+  }
+}
+
 function resetUnreadState(): void {
   readCursor = null;
   try { localStorage.removeItem(READ_CURSOR_STORAGE_KEY); } catch { /* in-memory state was reset */ }
@@ -6396,6 +6475,10 @@ resetBbsSettingsButton.addEventListener('click', () => {
   void resetConfigToBundled('bbs.toml');
 });
 
+resetReaderStyleButton.addEventListener('click', () => {
+  void resetReaderStyleToBundled();
+});
+
 resetUnreadStateButton.addEventListener('click', () => {
   resetUnreadState();
 });
@@ -6422,6 +6505,14 @@ generalExportConfigButton.addEventListener('click', () => {
 
 generalImportConfigButton.addEventListener('click', () => {
   void importSettingsFile('global.toml');
+});
+
+readerStyleExportConfigButton.addEventListener('click', () => {
+  void exportReaderStyleFile();
+});
+
+readerStyleImportConfigButton.addEventListener('click', () => {
+  void importReaderStyleFile();
 });
 
 for (const pair of [...postColorInputs.values(), ...advancedPostColorInputs.values(), ...treeColorInputs.values()]) {
