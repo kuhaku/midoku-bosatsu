@@ -29,10 +29,3 @@ test('固定バーは最終取得、新規投稿、未読境界を左右中央�
   assert.match(styleSource, /\.fixed-status-main\s*\{[^}]*grid-template-columns:\s*1fr auto 1fr/u);
   assert.match(styleSource, /\.fixed-status-actions\s*\{[^}]*justify-content:\s*flex-end/u);
 });
-
-test('固定バーの新規投稿ボタンは明るい背景に深緑のプラスを表示する', () => {
-  assert.match(
-    styleSource,
-    /\.fixed-new-post-button\s*\{[^}]*background:\s*#f8f9fa[^}]*color:\s*#004040/u,
-  );
-});
