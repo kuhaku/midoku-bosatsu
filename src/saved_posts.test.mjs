@@ -182,6 +182,25 @@ test('保存操作ボタンは投稿メタ情報の右端へ寄せる', async ()
   assert.match(style, /\.saved-post-meta\s*\{[^}]*margin-left:\s*auto/u);
 });
 
+test('保存済みツリーは投稿操作の右寄せを適用しない', async () => {
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+  const renderSavedPosts = main.match(/function renderSavedPosts\(\): void \{[\s\S]*?\n\}/u)?.[0] ?? '';
+
+  assert.match(renderSavedPosts, /buildTreeGroupElement\(group, true, false\)/u);
+});
+
+test('保存済みツリーは従来のベル・保存・未読の順を維持する', async () => {
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+  const treeNodeBuilder = main.match(/function buildTreeNodeArticle[\s\S]*?\n\}\n\nfunction buildTreeGroupElement/u)?.[0] ?? '';
+  const savedTreeActions = treeNodeBuilder.match(/\} else \{([\s\S]*?)\n  \}\n\n  const contentRow/u)?.[1] ?? '';
+
+  const notificationIndex = savedTreeActions.indexOf('const notificationButton = createReplyNotificationButton(post);');
+  const saveIndex = savedTreeActions.indexOf('if (config?.global.post_saving_enabled ?? true) {');
+  const unreadIndex = savedTreeActions.indexOf('if (unread) {');
+  assert.ok(notificationIndex >= 0 && saveIndex >= 0 && unreadIndex >= 0, '保存済みツリーの操作要素が見つかりません');
+  assert.ok(notificationIndex < saveIndex && saveIndex < unreadIndex, 'ベル、保存、未読の順を維持してください');
+});
+
 test('保存ボタンはハートアイコン画像と保存済み状態の色を使う', async () => {
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
   const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');

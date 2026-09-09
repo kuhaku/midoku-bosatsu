@@ -3363,7 +3363,7 @@ function renderSavedPosts(): void {
       renderedTreeKeys.add(treeKey);
       const treePosts = treeGroupsByKey.get(treeKey) ?? [];
       for (const group of buildTreeDisplayGroups(treePosts)) {
-        fragment.append(buildTreeGroupElement(group, true));
+        fragment.append(buildTreeGroupElement(group, true, false));
       }
       continue;
     }
@@ -4284,7 +4284,11 @@ function validTreeAuthor(value: string): string | null {
   return normalized || null;
 }
 
-function buildTreeNodeArticle(item: TreeDisplayPost, includePostKey: boolean): HTMLElement {
+function buildTreeNodeArticle(
+  item: TreeDisplayPost,
+  includePostKey: boolean,
+  rightAlignPostActions = true,
+): HTMLElement {
   const { post, headerPrefix, bodyPrefix, hasChildren, parentPost } = item;
   const unread = isPostUnread(post);
   const article = document.createElement('article');
@@ -4324,20 +4328,38 @@ function buildTreeNodeArticle(item: TreeDisplayPost, includePostKey: boolean): H
   firstLine.append(createTreeActionLink(post, 'follow'));
   firstLine.append(document.createTextNode('　'));
   firstLine.append(createTreeActionLink(post, 'thread'));
-  const notificationButton = createReplyNotificationButton(post);
-  if (notificationButton) firstLine.append(document.createTextNode('　'), notificationButton);
-  if (config?.global.post_saving_enabled ?? true) {
-    firstLine.append(document.createTextNode('　'), createSavePostButton(post));
-  }
 
-  if (unread) {
-    firstLine.append(document.createTextNode('　'));
-    const unreadBadge = document.createElement('span');
-    unreadBadge.className = 'unread-badge';
-    unreadBadge.textContent = '未読';
-    firstLine.append(unreadBadge);
+  if (rightAlignPostActions) {
+    const actionGroup = document.createElement('span');
+    actionGroup.className = 'tree-post-action-group';
+    if (unread) {
+      const unreadBadge = document.createElement('span');
+      unreadBadge.className = 'unread-badge';
+      unreadBadge.textContent = '未読';
+      actionGroup.append(unreadBadge);
+    }
+    const notificationButton = createReplyNotificationButton(post);
+    if (notificationButton) actionGroup.append(notificationButton);
+    if (config?.global.post_saving_enabled ?? true) {
+      actionGroup.append(createSavePostButton(post));
+    }
+    applyReplyNotificationPostPresentation(article, firstLine, post, unread);
+    if (actionGroup.childElementCount > 0) firstLine.append(actionGroup);
+  } else {
+    const notificationButton = createReplyNotificationButton(post);
+    if (notificationButton) firstLine.append(document.createTextNode('　'), notificationButton);
+    if (config?.global.post_saving_enabled ?? true) {
+      firstLine.append(document.createTextNode('　'), createSavePostButton(post));
+    }
+    if (unread) {
+      firstLine.append(document.createTextNode('　'));
+      const unreadBadge = document.createElement('span');
+      unreadBadge.className = 'unread-badge';
+      unreadBadge.textContent = '未読';
+      firstLine.append(unreadBadge);
+    }
+    applyReplyNotificationPostPresentation(article, firstLine, post, unread);
   }
-  applyReplyNotificationPostPresentation(article, firstLine, post, unread);
 
   const contentRow = document.createElement('div');
   contentRow.className = hasChildren ? 'tree-post-content-row' : 'tree-post-content-row tree-post-content-row-leaf';
@@ -4358,12 +4380,16 @@ function buildTreeNodeArticle(item: TreeDisplayPost, includePostKey: boolean): H
   return article;
 }
 
-function buildTreeGroupElement(group: TreeDisplayGroup, includePostKeys: boolean): HTMLElement {
+function buildTreeGroupElement(
+  group: TreeDisplayGroup,
+  includePostKeys: boolean,
+  rightAlignPostActions = true,
+): HTMLElement {
   const section = document.createElement('section');
   section.className = 'tree-thread-group';
   section.dataset.treeThreadKey = group.key;
   section.append(buildTreeHeader(group));
-  for (const item of group.items) section.append(buildTreeNodeArticle(item, includePostKeys));
+  for (const item of group.items) section.append(buildTreeNodeArticle(item, includePostKeys, rightAlignPostActions));
   return section;
 }
 

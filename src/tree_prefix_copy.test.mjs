@@ -35,3 +35,25 @@ test('ツリーヘッダー行末に◆を表示しない', () => {
   assert.doesNotMatch(headerBuilder, /記事数：\$\{group\.posts\.length\}　`\)\);/u);
   assert.doesNotMatch(headerBuilder, /header\.append\(createTreeActionLink\(threadSource, 'thread'\)\);[\s\S]*?header\.append\(createTreeActionLink\(threadSource, 'thread'\)\)/u);
 });
+
+test('ツリー投稿の未読・レス通知・保存操作を指定順で表示する', () => {
+  const treeNodeBuilder = mainSource.match(/function buildTreeNodeArticle[\s\S]*?\n\}\n\nfunction buildTreeGroupElement/u)?.[0];
+  assert.ok(treeNodeBuilder, 'ツリー投稿の描画処理が見つかりません');
+
+  const unreadIndex = treeNodeBuilder.indexOf('if (unread) {');
+  const notificationIndex = treeNodeBuilder.indexOf('const notificationButton = createReplyNotificationButton(post);');
+  const saveIndex = treeNodeBuilder.indexOf('if (config?.global.post_saving_enabled ?? true) {');
+  assert.ok(unreadIndex >= 0 && notificationIndex >= 0 && saveIndex >= 0, 'ツリー投稿の操作要素が見つかりません');
+  assert.ok(unreadIndex < notificationIndex && notificationIndex < saveIndex, '未読、レス通知、保存の順に表示してください');
+});
+
+test('ツリー投稿の未読・レス通知・保存操作をまとめて右寄せする', () => {
+  const treeNodeBuilder = mainSource.match(/function buildTreeNodeArticle[\s\S]*?\n\}\n\nfunction buildTreeGroupElement/u)?.[0];
+  assert.ok(treeNodeBuilder, 'ツリー投稿の描画処理が見つかりません');
+  assert.match(treeNodeBuilder, /actionGroup\.className = 'tree-post-action-group'/u);
+  assert.match(treeNodeBuilder, /firstLine\.append\(actionGroup\)/u);
+
+  const actionGroupStyle = styleSource.match(/\.tree-post-action-group\s*\{[\s\S]*?\n\}/u)?.[0] ?? '';
+  assert.match(actionGroupStyle, /display:\s*inline-flex/u);
+  assert.match(actionGroupStyle, /margin-left:\s*auto/u);
+});

@@ -21,7 +21,7 @@ test('投稿保存機能の設定を基本的な設定に追加する', () => {
 test('投稿保存機能がOFFのとき保存UIを表示しない', () => {
   assert.match(mainSource, /savedPostsButton\.hidden = !enabled/u);
   assert.match(mainSource, /if \(config\?\.global\.post_saving_enabled \?\? true\) primaryMeta\.append\(createSavePostButton\(post\)\)/u);
-  assert.match(mainSource, /if \(config\?\.global\.post_saving_enabled \?\? true\) \{\s*firstLine\.append\(document\.createTextNode\('　'\), createSavePostButton\(post\)\)/u);
+  assert.match(mainSource, /if \(config\?\.global\.post_saving_enabled \?\? true\) \{\s*actionGroup\.append\(createSavePostButton\(post\)\)/u);
   assert.match(mainSource, /if \(config\?\.global\.post_saving_enabled \?\? true\) header\.append\(saveButton\)/u);
 });
 

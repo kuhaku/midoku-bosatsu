@@ -480,6 +480,18 @@ button:disabled { cursor: default; opacity: .45; }
   font-size: var(--post-font-size);
 }
 
+.tree-post-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.tree-post-action-group .post-save-button {
+  margin-left: 0;
+}
+
 .tree-post-content-row {
   min-width: 0;
 }
