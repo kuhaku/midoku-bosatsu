@@ -33,7 +33,7 @@
 
 - ファイル名に `x64-setup.exe` や `windows-x64.zip` とついてるやつ
 
-> [!WARNING]
+> [!IMPORTANT]
 > インストーラーを使いたくない用にZIP版を用意してますが、Windowsの仕様でアプリの自動アップデート機能はZIP版では使えません。
 
 ### macOS
