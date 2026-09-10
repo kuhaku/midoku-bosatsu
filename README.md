@@ -73,8 +73,16 @@ chmod 755 midoku-bosatsu*.AppImage
 
 #### Debian 系
 
-拡張子が `.deb` のものをダウンロードして下記コマンドでインストール。
+APT で管理できるようになりました。
 
 ```sh
-sudo apt install ./Downloads/midoku-bosatsu_*_amd64.deb
+# 1. 公開鍵のインポート
+curl -fsSL https://kuhaku.github.io/midoku-bosatsu/public.key | sudo gpg --dearmor -o /usr/share/keyrings/midoku-bosatsu-keyring.gpg
+
+# 2. APT リポジトリの追加
+echo "deb [signed-by=/usr/share/keyrings/myrepo-archive-keyring.gpg] https://kuhaku.github.io/midoku-bosatsu/ stable main" | sudo tee /etc/apt/sources.list.d/midoku-bosatsu.list > /dev/null
+
+# 3. インストール
+sudo apt-get update
+sudo apt-get install midoku-bosatsu
 ```
