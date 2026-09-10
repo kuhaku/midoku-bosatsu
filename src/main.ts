@@ -63,6 +63,7 @@ import {
 import { shouldRequestPostCloseConfirmation } from './post_close_confirmation.ts';
 import { isPostSubmitShortcut } from './post_submit_shortcut.ts';
 import { isPostNavigationShortcutTarget } from './keyboard_shortcut_target.ts';
+import { isShortcutKeyListNavigationVisible } from './shortcut_key_list_visibility.ts';
 import {
   bbsTimelineSelectionForShortcutKey,
   filterPostsForBbsTimeline,
@@ -477,18 +478,18 @@ app.innerHTML = `
         <section aria-labelledby="shortcut-key-list-post-navigation-title">
           <h3 id="shortcut-key-list-post-navigation-title">投稿タイムライン</h3>
           <dl class="shortcut-key-list">
-            <dt><kbd>j</kbd></dt><dd>上の投稿へ移動</dd>
-            <dt><kbd>k</kbd></dt><dd>下の投稿へ移動</dd>
+            <dt><kbd>J</kbd></dt><dd>上の投稿へ移動</dd>
+            <dt><kbd>K</kbd></dt><dd>下の投稿へ移動</dd>
             <dt><kbd>.</kbd></dt><dd>未読境界へ移動</dd>
-            <dt><kbd>g</kbd></dt><dd>最新の投稿へ移動</dd>
-            <dt><kbd>n</kbd></dt><dd>新規投稿画面を開く</dd>
-            <dt><kbd>r</kbd></dt><dd>現在の投稿へフォロー投稿</dd>
-            <dt><kbd>t</kbd></dt><dd>スレッド表示を開く</dd>
-            <dt><kbd>Ctrl + t / Command + t</kbd></dt><dd>スレッドのツリー表示を開く</dd>
-            <dt><kbd>d</kbd></dt><dd>現在の投稿を保存／解除</dd>
-            <dt><kbd>Ctrl + d / Command + d</kbd></dt><dd>保存済み投稿一覧を開く／閉じる</dd>
-            <dt><kbd>Ctrl + r / Command + r</kbd></dt><dd>未読リロード</dd>
-            <dt><kbd>Ctrl + b / Command + b</kbd></dt><dd>左ナビを表示／非表示</dd>
+            <dt><kbd>G</kbd></dt><dd>最新の投稿へ移動</dd>
+            <dt><kbd>N</kbd></dt><dd>新規投稿画面を開く</dd>
+            <dt><kbd>R</kbd></dt><dd>現在の投稿へフォロー投稿</dd>
+            <dt><kbd>T</kbd></dt><dd>スレッド表示を開く</dd>
+            <dt><kbd>Ctrl + T / Command + T</kbd></dt><dd>スレッドのツリー表示を開く</dd>
+            <dt><kbd>Ctrl + R / Command + R</kbd></dt><dd>手動未読リロード</dd>
+            <dt><kbd>D</kbd></dt><dd>現在の投稿を保存／解除 (投稿保存設定がONの場合のみ)</dd>
+            <dt><kbd>Ctrl + D / Command + D</kbd></dt><dd>保存済み投稿一覧を開く／閉じる (投稿保存設定がONの場合のみ)</dd>
+            <dt><kbd>Ctrl + B / Command + B</kbd></dt><dd>左ナビを表示／非表示</dd>
             <dt><kbd>Ctrl + 1〜9 / Command + 1〜9</kbd></dt><dd>登録順のBBS投稿だけを表示</dd>
             <dt><kbd>Ctrl + 0 / Command + 0</kbd></dt><dd>すべての掲示板を表示</dd>
           </dl>
@@ -497,14 +498,15 @@ app.innerHTML = `
           <h3 id="shortcut-key-list-post-compose-title">投稿画面</h3>
           <dl class="shortcut-key-list">
             <dt><kbd>Ctrl + Enter / Command + Return</kbd></dt><dd>投稿を送信</dd>
+            <dt><kbd>Esc</kbd></dt><dd>投稿画面を閉じる</dd>
           </dl>
         </section>
         <section aria-labelledby="shortcut-key-list-search-title">
           <h3 id="shortcut-key-list-search-title">投稿内検索</h3>
           <dl class="shortcut-key-list">
-            <dt><kbd>Ctrl + f / Command + f</kbd></dt><dd>投稿内を検索</dd>
-            <dt><kbd>Enter</kbd></dt><dd>次の検索結果</dd>
-            <dt><kbd>Shift + Enter</kbd></dt><dd>前の検索結果</dd>
+            <dt><kbd>Ctrl + F / Command + F</kbd></dt><dd>投稿内を検索</dd>
+            <dt><kbd>Enter / Return</kbd></dt><dd>次の検索結果</dd>
+            <dt><kbd>Shift + Enter / Shift + Return</kbd></dt><dd>前の検索結果</dd>
             <dt><kbd>Esc</kbd></dt><dd>画面・検索を閉じる</dd>
           </dl>
         </section>
@@ -4818,6 +4820,9 @@ function applyDisplayConfig(globalConfig: GlobalConfig): void {
   const enabled = globalConfig.post_saving_enabled ?? true;
   savedPostsButton.hidden = !enabled;
   if (!enabled && !savedPostsView.hidden) closeSavedPostsView();
+  const shortcutKeyListVisible = isShortcutKeyListNavigationVisible(globalConfig.keyboard_shortcuts_enabled);
+  shortcutKeyListButton.hidden = !shortcutKeyListVisible;
+  if (!shortcutKeyListVisible && !shortcutKeyListView.hidden) closeShortcutKeyListView(false);
   startViewingModeTimer();
 }
 
