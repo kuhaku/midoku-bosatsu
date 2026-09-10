@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "node --test src/*.test.mjs",
+    "version:set": "node scripts/set-version.mjs",
     "tauri": "tauri"
   },
   "devDependencies": {
