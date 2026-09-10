@@ -33,7 +33,7 @@ jobs:
           Origin: MidokuBosatsuRepo
           Label: MidokuBosatsuRepo
           Codename: stable
-          Architectures: amd64 all
+          Architectures: amd64
           Components: main
           Description: Midoku-Bosatsu APT Repository
           SignWith: yes
