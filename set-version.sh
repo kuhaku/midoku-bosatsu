@@ -9,5 +9,3 @@ bash ./test.sh
 
 cd src-tauri
 cargo update
-
-git tag app-v$1
