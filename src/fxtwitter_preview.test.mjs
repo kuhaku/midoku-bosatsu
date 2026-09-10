@@ -124,6 +124,15 @@ test('FxTwitter動画サムネイルは共通サイズを高さの上限に使�
   assert.doesNotMatch(videoRule, /reader-image-max-height/u);
 });
 
+test('FxTwitterメディアのサムネイルは直接URLを新しいタブで開く', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+  assert.match(main, /createExternalLink\(imageUrl, ''\)/u);
+  assert.match(main, /createExternalLink\(videoUrl, ''\)/u);
+  assert.match(main, /mediaLink\.target = '_blank'/u);
+});
+
 test('FxTwitterのサムネイル枠はリンクの未訪問・訪問済み色を使う', async () => {
   const { readFile } = await import('node:fs/promises');
   const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
