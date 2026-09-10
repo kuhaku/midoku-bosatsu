@@ -57,7 +57,7 @@ jobs:
           for deb in downloads/*.deb; do
             if [ -f "$deb" ]; then
               echo "Adding $deb to repository..."
-              reprepro -b apt-repo includedeb stable "$deb"
+              reprepro -b apt-repo -C main -S web includedeb stable "$deb"
             fi
           done
           # ユーザーがapt-keyとして登録できるよう公開鍵を配置
