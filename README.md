@@ -80,7 +80,7 @@ APT で管理できるようになりました。
 curl -fsSL https://kuhaku.github.io/midoku-bosatsu/public.key | sudo gpg --dearmor -o /usr/share/keyrings/midoku-bosatsu-keyring.gpg
 
 # 2. APT リポジトリの追加
-echo "deb [signed-by=/usr/share/keyrings/myrepo-archive-keyring.gpg] https://kuhaku.github.io/midoku-bosatsu/ stable main" | sudo tee /etc/apt/sources.list.d/midoku-bosatsu.list > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/midoku-bosatsu-keyring.gpg] https://kuhaku.github.io/midoku-bosatsu/ stable main" | sudo tee /etc/apt/sources.list.d/midoku-bosatsu.list > /dev/null
 
 # 3. インストール
 sudo apt-get update
