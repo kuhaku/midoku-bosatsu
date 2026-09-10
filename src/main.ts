@@ -85,7 +85,9 @@ import {
   normalizeFxTwitterPreview,
   parseFxTwitterPreviewTextLinks,
   parseFxTwitterStatusUrl,
+  selectFxTwitterPreviewText,
   truncateFxTwitterPreviewText,
+  type FxTwitterPreviewPost,
   type FxTwitterPreview,
 } from './fxtwitter_preview.ts';
 import {
@@ -2173,14 +2175,15 @@ function safeHttpUrl(rawUrl: string, baseUrl: string | undefined): string | null
 
 const fxTwitterPreviewRequests = new Map<string, Promise<FxTwitterPreview | null>>();
 
-function fetchFxTwitterPreview(statusId: string): Promise<FxTwitterPreview | null> {
-  const cached = fxTwitterPreviewRequests.get(statusId);
+function fetchFxTwitterPreview(statusId: string, targetLanguage?: 'ja'): Promise<FxTwitterPreview | null> {
+  const cacheKey = `${statusId}:${targetLanguage ?? ''}`;
+  const cached = fxTwitterPreviewRequests.get(cacheKey);
   if (cached) return cached;
 
-  const request = invoke<unknown>('fetch_fxtwitter_status', { statusId })
+  const request = invoke<unknown>('fetch_fxtwitter_status', { statusId, targetLanguage })
     .then(normalizeFxTwitterPreview)
     .catch(() => null);
-  fxTwitterPreviewRequests.set(statusId, request);
+  fxTwitterPreviewRequests.set(cacheKey, request);
   return request;
 }
 
@@ -2194,9 +2197,64 @@ function appendFxTwitterPreviewTextLinks(value: string, target: HTMLElement): vo
   }
 }
 
-function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
+function appendFxTwitterPreviewMedia(preview: FxTwitterPreviewPost, card: HTMLElement): void {
+  if (!(config?.global.show_post_images ?? false)) return;
+
+  const media = document.createElement('div');
+  media.className = 'fxtwitter-preview-media';
+  for (const rawUrl of preview.photoUrls) {
+    const imageUrl = safeHttpUrl(rawUrl, undefined);
+    if (!imageUrl) continue;
+    const image = document.createElement('img');
+    image.className = 'post-image post-image-thumbnail fxtwitter-preview-photo';
+    image.src = imageUrl;
+    image.alt = 'X投稿の添付画像';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.referrerPolicy = 'no-referrer';
+    image.dataset.externalUrl = imageUrl;
+    if (visitedUrls.has(imageUrl)) image.classList.add('link-visited');
+    const mediaLink = createExternalLink(imageUrl, '');
+    mediaLink.target = '_blank';
+    mediaLink.title = 'X投稿の添付画像を開く';
+    mediaLink.append(image);
+    media.append(mediaLink);
+  }
+  for (const source of preview.videos) {
+    const posterUrl = safeHttpUrl(source.thumbnailUrl, undefined);
+    if (!posterUrl) continue;
+    const thumbnail = document.createElement('img');
+    thumbnail.className = 'fxtwitter-preview-video-thumbnail';
+    thumbnail.src = posterUrl;
+    thumbnail.alt = 'X投稿の添付動画のサムネイル';
+    thumbnail.loading = 'lazy';
+    thumbnail.decoding = 'async';
+    thumbnail.referrerPolicy = 'no-referrer';
+    const videoUrl = safeHttpUrl(source.url, undefined);
+    if (!videoUrl) {
+      media.append(thumbnail);
+      continue;
+    }
+    const mediaLink = createExternalLink(videoUrl, '');
+    mediaLink.target = '_blank';
+    mediaLink.classList.add('fxtwitter-preview-video-link');
+    mediaLink.title = 'X投稿の添付動画を開く';
+    const label = document.createElement('span');
+    label.className = 'fxtwitter-preview-video-label';
+    label.textContent = '動画を見る';
+    mediaLink.append(thumbnail, label);
+    media.append(mediaLink);
+  }
+  if (media.childElementCount > 0) card.append(media);
+}
+
+function buildFxTwitterPreviewPost(
+  preview: FxTwitterPreviewPost,
+  translated: boolean,
+  translationLink?: HTMLElement,
+): HTMLElement {
   const card = document.createElement('section');
-  card.className = 'fxtwitter-preview post-copy-exclusion';
+  card.className = 'fxtwitter-preview-post';
 
   const header = document.createElement('div');
   header.className = 'fxtwitter-preview-header';
@@ -2214,14 +2272,21 @@ function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
   if (preview.authorHandle) {
     const handle = document.createElement('span');
     handle.textContent = `@${preview.authorHandle}`;
-    header.append(handle);
+    if (translationLink) {
+      header.append(handle, translationLink);
+    } else {
+      header.append(handle);
+    }
+  } else if (translationLink) {
+    header.append(translationLink);
   }
   const text = document.createElement('p');
   text.className = 'fxtwitter-preview-text';
-  const truncatedText = truncateFxTwitterPreviewText(preview.text);
+  const previewText = selectFxTwitterPreviewText(preview, translated);
+  const truncatedText = truncateFxTwitterPreviewText(previewText);
   let expanded = false;
   const renderText = (): void => {
-    const value = expanded ? preview.text : truncatedText.text;
+    const value = expanded ? previewText : truncatedText.text;
     text.replaceChildren();
     appendFxTwitterPreviewTextLinks(value, text);
     text.setAttribute('aria-expanded', String(expanded));
@@ -2245,57 +2310,45 @@ function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
     });
   }
   card.append(header, text);
+  appendFxTwitterPreviewMedia(preview, card);
+  return card;
+}
 
-  if (config?.global.show_post_images ?? false) {
-    const media = document.createElement('div');
-    media.className = 'fxtwitter-preview-media';
-    for (const rawUrl of preview.photoUrls) {
-      const imageUrl = safeHttpUrl(rawUrl, undefined);
-      if (!imageUrl) continue;
-      const image = document.createElement('img');
-      image.className = 'post-image post-image-thumbnail fxtwitter-preview-photo';
-      image.src = imageUrl;
-      image.alt = 'X投稿の添付画像';
-      image.loading = 'lazy';
-      image.decoding = 'async';
-      image.referrerPolicy = 'no-referrer';
-      image.dataset.externalUrl = imageUrl;
-      if (visitedUrls.has(imageUrl)) image.classList.add('link-visited');
-      const mediaLink = createExternalLink(imageUrl, '');
-      mediaLink.target = '_blank';
-      mediaLink.title = 'X投稿の添付画像を開く';
-      mediaLink.append(image);
-      media.append(mediaLink);
+function buildFxTwitterPreviewCard(preview: FxTwitterPreview): HTMLElement {
+  const card = document.createElement('section');
+  card.className = 'fxtwitter-preview post-copy-exclusion';
+  let translated = false;
+  let displayedPreview: FxTwitterPreview = preview;
+  const content = document.createElement('div');
+  const translationLink = document.createElement('a');
+  translationLink.className = 'fxtwitter-preview-translation';
+  translationLink.href = '#';
+  const quote = document.createElement('div');
+  quote.className = 'fxtwitter-preview-quote';
+  const render = (): void => {
+    translationLink.textContent = translated ? '原文' : '翻訳';
+    content.replaceChildren(buildFxTwitterPreviewPost(displayedPreview, translated, translationLink));
+    quote.replaceChildren();
+    if (displayedPreview.quote) quote.append(buildFxTwitterPreviewPost(displayedPreview.quote, translated));
+  };
+  translationLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (translated) {
+      translated = false;
+      displayedPreview = preview;
+      render();
+      return;
     }
-    for (const source of preview.videos) {
-      const posterUrl = safeHttpUrl(source.thumbnailUrl, undefined);
-      if (!posterUrl) continue;
-      const thumbnail = document.createElement('img');
-      thumbnail.className = 'fxtwitter-preview-video-thumbnail';
-      thumbnail.src = posterUrl;
-      thumbnail.alt = 'X投稿の添付動画のサムネイル';
-      thumbnail.loading = 'lazy';
-      thumbnail.decoding = 'async';
-      thumbnail.referrerPolicy = 'no-referrer';
-
-      const videoUrl = safeHttpUrl(source.url, undefined);
-      if (!videoUrl) {
-        media.append(thumbnail);
-        continue;
-      }
-      const mediaLink = createExternalLink(videoUrl, '');
-      mediaLink.target = '_blank';
-      mediaLink.classList.add('fxtwitter-preview-video-link');
-      mediaLink.title = 'X投稿の添付動画を開く';
-      const label = document.createElement('span');
-      label.className = 'fxtwitter-preview-video-label';
-      label.textContent = '動画を見る';
-      mediaLink.append(thumbnail, label);
-      media.append(mediaLink);
-    }
-    if (media.childElementCount > 0) card.append(media);
-  }
-
+    void fetchFxTwitterPreview(preview.statusId, 'ja').then((translatedPreview) => {
+      if (!translatedPreview?.translatedText) return;
+      translated = true;
+      displayedPreview = translatedPreview;
+      render();
+    });
+  });
+  render();
+  card.append(content);
+  if (preview.quote) card.append(quote);
   return card;
 }
 

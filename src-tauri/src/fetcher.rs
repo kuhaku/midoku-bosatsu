@@ -23,12 +23,28 @@ use crate::{
     reply_notification::SubmittedPostFields,
 };
 
-fn fxtwitter_status_endpoint(status_id: &str) -> Result<Url, String> {
+fn fxtwitter_status_endpoint(
+    status_id: &str,
+    target_language: Option<&str>,
+) -> Result<Url, String> {
     if status_id.is_empty() || !status_id.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err("FxTwitterの投稿IDが不正です".to_string());
     }
-    Url::parse(&format!("https://api.fxtwitter.com/2/status/{status_id}"))
-        .map_err(|e| format!("FxTwitter API URLの生成に失敗しました: {e}"))
+    let translation_language = match target_language {
+        Some(language)
+            if language.len() == 2 && language.bytes().all(|byte| byte.is_ascii_alphabetic()) =>
+        {
+            Some(language.to_ascii_lowercase())
+        }
+        Some(_) => return Err("FxTwitterの翻訳先言語が不正です".to_string()),
+        None => None,
+    };
+    let mut endpoint = Url::parse(&format!("https://api.fxtwitter.com/2/status/{status_id}"))
+        .map_err(|e| format!("FxTwitter API URLの生成に失敗しました: {e}"))?;
+    if let Some(language) = translation_language {
+        endpoint.query_pairs_mut().append_pair("lang", &language);
+    }
+    Ok(endpoint)
 }
 
 /// HTTPクライアントと、各サイトの「次回未読リロード用FORM」および
@@ -77,8 +93,9 @@ impl ReaderState {
     pub async fn fetch_fxtwitter_status(
         &self,
         status_id: &str,
+        target_language: Option<&str>,
     ) -> Result<serde_json::Value, String> {
-        let endpoint = fxtwitter_status_endpoint(status_id)?;
+        let endpoint = fxtwitter_status_endpoint(status_id, target_language)?;
         let response = self
             .client
             .get(endpoint)
@@ -776,11 +793,24 @@ mod tests {
     #[test]
     fn fxtwitter_status_endpoint_accepts_only_numeric_status_ids() {
         assert_eq!(
-            fxtwitter_status_endpoint("123456789").unwrap().as_str(),
+            fxtwitter_status_endpoint("123456789", None)
+                .unwrap()
+                .as_str(),
             "https://api.fxtwitter.com/2/status/123456789"
         );
-        assert!(fxtwitter_status_endpoint("https://example.com/").is_err());
-        assert!(fxtwitter_status_endpoint("123/../../private").is_err());
+        assert!(fxtwitter_status_endpoint("https://example.com/", None).is_err());
+        assert!(fxtwitter_status_endpoint("123/../../private", None).is_err());
+    }
+
+    #[test]
+    fn fxtwitter_status_endpoint_adds_a_valid_translation_language() {
+        assert_eq!(
+            fxtwitter_status_endpoint("123456789", Some("ja"))
+                .unwrap()
+                .as_str(),
+            "https://api.fxtwitter.com/2/status/123456789?lang=ja"
+        );
+        assert!(fxtwitter_status_endpoint("123456789", Some("japanese")).is_err());
     }
 
     #[test]

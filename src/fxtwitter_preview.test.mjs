@@ -4,6 +4,7 @@ import {
   normalizeFxTwitterPreview,
   parseFxTwitterPreviewTextLinks,
   parseFxTwitterStatusUrl,
+  selectFxTwitterPreviewText,
   truncateFxTwitterPreviewText,
 } from './fxtwitter_preview.ts';
 
@@ -48,7 +49,9 @@ test('FxTwitterレスポンスからカード表示に必要な安全な値だ�
     authorName: '投稿者',
     authorHandle: 'example',
     statusUrl: 'https://x.com/example/status/1234567890',
+    statusId: '1234567890',
     text: '画像と動画付きの投稿',
+    translatedText: '',
     photoUrls: ['https://pbs.twimg.com/media/example.jpg'],
     videos: [{
       url: 'https://video.twimg.com/ext_tw_video/example.mp4',
@@ -59,6 +62,50 @@ test('FxTwitterレスポンスからカード表示に必要な安全な値だ�
 
 test('投稿本文がないFxTwitterレスポンスはカードとして扱わない', () => {
   assert.equal(normalizeFxTwitterPreview({ code: 404, status: null }), null);
+});
+
+test('FxTwitterレスポンスの翻訳文と引用先ポストをカード用に正規化する', () => {
+  assert.deepEqual(normalizeFxTwitterPreview({
+    status: {
+      url: 'https://x.com/example/status/123',
+      text: 'Original post',
+      translation: { text: '翻訳された投稿' },
+      author: { name: '投稿者', screen_name: 'example' },
+      quote: {
+        url: 'https://x.com/quoted/status/456',
+        text: 'Quoted post',
+        translation: { text: '引用先の翻訳' },
+        author: { name: '引用先', screen_name: 'quoted' },
+      },
+    },
+  }), {
+    authorName: '投稿者',
+    authorHandle: 'example',
+    statusUrl: 'https://x.com/example/status/123',
+    statusId: '123',
+    text: 'Original post',
+    translatedText: '翻訳された投稿',
+    photoUrls: [],
+    videos: [],
+    quote: {
+      authorName: '引用先',
+      authorHandle: 'quoted',
+      statusUrl: 'https://x.com/quoted/status/456',
+      text: 'Quoted post',
+      translatedText: '引用先の翻訳',
+      photoUrls: [],
+      videos: [],
+    },
+  });
+});
+
+test('翻訳文がある場合だけプレビュー本文を翻訳文へ切り替える', () => {
+  const preview = {
+    authorName: '', authorHandle: '', statusUrl: '', text: 'Original', translatedText: '翻訳', photoUrls: [], videos: [],
+  };
+  assert.equal(selectFxTwitterPreviewText(preview, false), 'Original');
+  assert.equal(selectFxTwitterPreviewText(preview, true), '翻訳');
+  assert.equal(selectFxTwitterPreviewText({ ...preview, translatedText: '' }, true), 'Original');
 });
 
 test('X投稿本文は140字まで省略せずに表示する', () => {
@@ -94,9 +141,27 @@ test('FxTwitterカードの長文はクリックで全文表示を切り替え�
   const { readFile } = await import('node:fs/promises');
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
 
-  assert.match(main, /truncateFxTwitterPreviewText\(preview\.text\)/u);
+  assert.match(main, /truncateFxTwitterPreviewText\(previewText\)/u);
   assert.match(main, /text\.addEventListener\('click'/u);
   assert.match(main, /text\.setAttribute\('aria-expanded'/u);
+});
+
+test('FxTwitterカードは翻訳と原文を切り替え、引用先ポストを埋め込む', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+  assert.match(main, /fetchFxTwitterPreview\(preview\.statusId, 'ja'\)/u);
+  assert.match(main, /translationLink\.textContent = translated \? '原文' : '翻訳'/u);
+  assert.match(main, /preview\.quote/u);
+  assert.match(main, /fxtwitter-preview-quote/u);
+});
+
+test('FxTwitterカードの翻訳リンクはスクリーンネームの右に置く', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+  assert.match(main, /header\.append\(handle, translationLink\);/u);
+  assert.doesNotMatch(main, /card\.append\(content, translationLink\);/u);
 });
 
 test('FxTwitterカードはユーザー名と本文URLを外部リンクにする', async () => {

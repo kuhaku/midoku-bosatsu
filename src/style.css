@@ -707,6 +707,23 @@ button:disabled { cursor: default; opacity: .45; }
   color: var(--color-muted);
 }
 
+.fxtwitter-preview-post {
+  display: grid;
+  gap: 8px;
+}
+
+.fxtwitter-preview-translation {
+  justify-self: start;
+}
+
+.fxtwitter-preview-quote {
+  margin-top: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--post-border-color);
+  border-radius: 6px;
+  background: var(--color-panel);
+}
+
 .fxtwitter-preview-text {
   margin: 0;
   white-space: pre-wrap;

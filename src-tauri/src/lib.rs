@@ -136,8 +136,11 @@ fn get_reader_style(app: AppHandle) -> Result<ReaderStyleConfig, String> {
 async fn fetch_fxtwitter_status(
     state: State<'_, ReaderState>,
     status_id: String,
+    target_language: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    state.fetch_fxtwitter_status(&status_id).await
+    state
+        .fetch_fxtwitter_status(&status_id, target_language.as_deref())
+        .await
 }
 
 #[tauri::command]

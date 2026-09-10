@@ -8,13 +8,19 @@ export type FxTwitterVideo = {
   thumbnailUrl: string;
 };
 
-export type FxTwitterPreview = {
+export type FxTwitterPreviewPost = {
   authorName: string;
   authorHandle: string;
   statusUrl: string;
   text: string;
+  translatedText: string;
   photoUrls: string[];
   videos: FxTwitterVideo[];
+  quote?: FxTwitterPreviewPost;
+};
+
+export type FxTwitterPreview = FxTwitterPreviewPost & {
+  statusId: string;
 };
 
 const X_HOSTS = new Set(['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com']);
@@ -82,9 +88,7 @@ export function parseFxTwitterStatusUrl(rawUrl: string): FxTwitterStatusReferenc
   return { id, url: url.href };
 }
 
-export function normalizeFxTwitterPreview(payload: unknown): FxTwitterPreview | null {
-  if (!payload || typeof payload !== 'object') return null;
-  const status = (payload as { status?: unknown }).status;
+function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | null {
   if (!status || typeof status !== 'object') return null;
 
   const text = (status as { text?: unknown }).text;
@@ -118,5 +122,37 @@ export function normalizeFxTwitterPreview(payload: unknown): FxTwitterPreview | 
       : [])
     : [];
 
-  return { authorName, authorHandle, statusUrl, text, photoUrls, videos: normalizedVideos };
+  const translation = (status as { translation?: unknown }).translation;
+  const translatedText = translation && typeof translation === 'object' && typeof (translation as { text?: unknown }).text === 'string'
+    ? (translation as { text: string }).text
+    : '';
+  const quote = normalizeFxTwitterPreviewPost((status as { quote?: unknown }).quote);
+
+  return {
+    authorName,
+    authorHandle,
+    statusUrl,
+    text,
+    translatedText,
+    photoUrls,
+    videos: normalizedVideos,
+    ...(quote ? { quote } : {}),
+  };
+}
+
+export function selectFxTwitterPreviewText(preview: FxTwitterPreviewPost, translated: boolean): string {
+  return translated && preview.translatedText ? preview.translatedText : preview.text;
+}
+
+export function normalizeFxTwitterPreview(payload: unknown): FxTwitterPreview | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const status = (payload as { status?: unknown }).status;
+  const preview = normalizeFxTwitterPreviewPost(status);
+  if (!preview) return null;
+
+  const rawStatusId = status && typeof status === 'object' && typeof (status as { id?: unknown }).id === 'string'
+    ? (status as { id: string }).id
+    : parseFxTwitterStatusUrl(preview.statusUrl)?.id ?? '';
+
+  return { ...preview, statusId: rawStatusId };
 }
