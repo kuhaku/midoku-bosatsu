@@ -1,0 +1,79 @@
+name: Build and Deploy APT Repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y reprepro gnupg
+
+      - name: Import GPG Key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Initialize APT Repository
+        run: |
+          mkdir -p apt-repo/conf
+          cat <<EOF > apt-repo/conf/distributions
+          Origin: MidokuBosatsuRepo
+          Label: MidokuBosatsuRepo
+          Codename: stable
+          Architectures: amd64 all
+          Components: main
+          Description: Midoku-Bosatsu APT Repository
+          SignWith: yes
+          EOF
+
+      - name: Download .deb from GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p downloads
+          # 全てのReleaseタグをJSONで取得
+          tags=$(gh release list --limit 100 --json tagName --jq '.[].tagName')
+          for tag in $tags; do
+            echo "Fetching .deb from $tag..."
+            # 各Releaseから.debファイルをダウンロード
+            gh release download "$tag" --pattern "*.deb" --dir downloads || true
+          done
+
+      - name: Build Repository with reprepro
+        run: |
+          for deb in downloads/*.deb; do
+            if [ -f "$deb" ]; then
+              echo "Adding $deb to repository..."
+              reprepro -b apt-repo includedeb stable "$deb"
+            fi
+          done
+          # ユーザーがapt-keyとして登録できるよう公開鍵を配置
+          gpg --armor --export > apt-repo/public.key
+
+      - name: Cleanup build files
+        run: rm -rf apt-repo/conf apt-repo/db downloads
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: 'apt-repo'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
