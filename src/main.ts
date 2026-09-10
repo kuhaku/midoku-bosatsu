@@ -52,6 +52,11 @@ import {
 } from './saved_posts.ts';
 import { textSearchRoot } from './text_search_scope.ts';
 import {
+  nextTextSearchHistoryIndex,
+  parseTextSearchHistory,
+  recordTextSearchQuery,
+} from './text_search_history.ts';
+import {
   formatNewPostDestinationLabel,
   shouldConfirmNewPostSiteChange,
 } from './new_post_destination.ts';
@@ -376,6 +381,7 @@ type ResetHiddenThread = { site_id: string; thread_id: string; created_at: strin
 const READ_CURSOR_STORAGE_KEY = 'midoku-bosatsu.read-cursor.v1';
 const POST_LOG_STORAGE_KEY = 'midoku-bosatsu.post-log.v1';
 const SAVED_POSTS_STORAGE_KEY = 'midoku-bosatsu.saved-posts.v1';
+const TEXT_SEARCH_HISTORY_STORAGE_KEY = 'midoku-bosatsu.text-search-history.v1';
 const DEFAULT_VIEWING_MODE_INTERVAL_SECONDS = 5;
 const MAX_VIEWING_MODE_INTERVAL_SECONDS = 86_400;
 const NOTIFICATION_ICON_URL = '/icons/notification-bell.png';
@@ -409,7 +415,11 @@ app.innerHTML = `
 
       <div class="timeline-content">
         <div id="text-search-bar" class="text-search-bar" hidden aria-label="投稿内文字列検索">
-          <input id="text-search-input" class="text-search-input" type="search" placeholder="投稿を検索" autocomplete="off" spellcheck="false" aria-label="検索文字列">
+          <div class="text-search-field">
+            <button id="text-search-history-button" class="text-search-history-button" type="button" aria-label="最近の検索を表示" aria-haspopup="listbox" aria-controls="text-search-history-menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 5 5"></path></svg></button>
+            <input id="text-search-input" class="text-search-input" type="search" placeholder="投稿を検索" autocomplete="off" spellcheck="false" aria-label="検索文字列">
+            <div id="text-search-history-menu" class="text-search-history-menu" role="listbox" aria-label="最近の検索" hidden></div>
+          </div>
           <label class="text-search-regex-option" title="入力を正規表現として検索します">
             <input id="text-search-regex" type="checkbox">
             <span>正規表現</span>
@@ -1186,6 +1196,8 @@ const imageHoverPopup = mustElement<HTMLDivElement>('#image-hover-popup');
 const imageHoverPopupImage = mustElement<HTMLImageElement>('#image-hover-popup-image');
 const textSearchBar = mustElement<HTMLDivElement>('#text-search-bar');
 const textSearchInput = mustElement<HTMLInputElement>('#text-search-input');
+const textSearchHistoryButton = mustElement<HTMLButtonElement>('#text-search-history-button');
+const textSearchHistoryMenu = mustElement<HTMLDivElement>('#text-search-history-menu');
 const textSearchRegexInput = mustElement<HTMLInputElement>('#text-search-regex');
 const textSearchCount = mustElement<HTMLElement>('#text-search-count');
 const textSearchPrevButton = mustElement<HTMLButtonElement>('#text-search-prev');
@@ -1488,6 +1500,8 @@ let wasAtTop = window.scrollY <= 8;
 let readCursor: ReadCursor | null = loadReadCursor();
 let textSearchMatches: HTMLElement[] = [];
 let textSearchIndex = -1;
+let textSearchHistory = loadTextSearchHistory();
+let textSearchHistoryIndex = -1;
 let currentPostKey: string | null = null;
 const isMacKeyboard = /Mac|iPhone|iPad|iPod/i.test(navigator.platform) || /Macintosh|Mac OS X/i.test(navigator.userAgent);
 const postsByKey = new Map<string, ParsedPost>();
@@ -2914,7 +2928,84 @@ function refreshTextSearch(resetIndex = false, scrollIntoView = false): void {
   setCurrentTextSearchMatch(nextIndex, scrollIntoView);
 }
 
+function loadTextSearchHistory(): string[] {
+  try {
+    return parseTextSearchHistory(localStorage.getItem(TEXT_SEARCH_HISTORY_STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function saveTextSearchQuery(): void {
+  const query = textSearchInput.value;
+  if (!query.trim()) return;
+
+  textSearchHistory = recordTextSearchQuery(textSearchHistory, query);
+  try {
+    localStorage.setItem(TEXT_SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(textSearchHistory));
+  } catch {
+    // localStorageが使えない環境でも、この起動中の検索履歴は維持する。
+  }
+}
+
+function renderTextSearchHistoryMenu(): void {
+  textSearchHistoryMenu.replaceChildren();
+  if (textSearchHistory.length === 0) return;
+
+  const title = document.createElement('div');
+  title.className = 'text-search-history-menu-title';
+  title.textContent = '最近の検索';
+  textSearchHistoryMenu.append(title);
+
+  for (const [index, query] of textSearchHistory.entries()) {
+    const item = document.createElement('button');
+    item.className = 'text-search-history-menu-item';
+    item.type = 'button';
+    item.role = 'option';
+    item.ariaSelected = String(index === textSearchHistoryIndex);
+    item.textContent = query;
+    item.addEventListener('click', () => selectTextSearchHistory(index));
+    textSearchHistoryMenu.append(item);
+  }
+
+  const clearButton = document.createElement('button');
+  clearButton.className = 'text-search-history-menu-clear';
+  clearButton.type = 'button';
+  clearButton.textContent = '最近の検索を消去';
+  clearButton.addEventListener('click', clearTextSearchHistory);
+  textSearchHistoryMenu.append(clearButton);
+}
+
+function setTextSearchHistoryMenuOpen(open: boolean): void {
+  const shouldOpen = open && textSearchHistory.length > 0;
+  textSearchHistoryMenu.hidden = !shouldOpen;
+  textSearchHistoryButton.ariaExpanded = String(shouldOpen);
+  if (!shouldOpen) textSearchHistoryIndex = -1;
+  if (shouldOpen) renderTextSearchHistoryMenu();
+}
+
+function selectTextSearchHistory(index: number): void {
+  const query = textSearchHistory[index];
+  if (!query) return;
+
+  textSearchInput.value = query;
+  setTextSearchHistoryMenuOpen(false);
+  textSearchInput.focus();
+}
+
+function clearTextSearchHistory(): void {
+  textSearchHistory = [];
+  try {
+    localStorage.removeItem(TEXT_SEARCH_HISTORY_STORAGE_KEY);
+  } catch {
+    // localStorageが使えない環境でも、この起動中の検索履歴は消去する。
+  }
+  setTextSearchHistoryMenuOpen(false);
+}
+
 function openTextSearch(): void {
+  textSearchHistoryIndex = -1;
+  setTextSearchHistoryMenuOpen(false);
   textSearchBar.classList.toggle('is-over-saved-posts-view', !savedPostsView.hidden);
   textSearchBar.hidden = false;
   refreshTextSearch(false, false);
@@ -2923,6 +3014,8 @@ function openTextSearch(): void {
 }
 
 function closeTextSearch(): void {
+  saveTextSearchQuery();
+  setTextSearchHistoryMenuOpen(false);
   const activeElement = document.activeElement;
   if (activeElement instanceof HTMLElement && textSearchBar.contains(activeElement)) activeElement.blur();
   textSearchBar.hidden = true;
@@ -6412,6 +6505,8 @@ shortcutKeyListDescriptionLink.addEventListener('click', (event) => {
 });
 
 textSearchInput.addEventListener('input', () => {
+  textSearchHistoryIndex = -1;
+  setTextSearchHistoryMenuOpen(false);
   refreshTextSearch(true, true);
 });
 
@@ -6422,11 +6517,40 @@ textSearchRegexInput.addEventListener('change', () => {
 
 textSearchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
+    if (!textSearchHistoryMenu.hidden && textSearchHistoryIndex >= 0) {
+      event.preventDefault();
+      selectTextSearchHistory(textSearchHistoryIndex);
+      return;
+    }
     event.preventDefault();
+    saveTextSearchQuery();
     moveTextSearch(event.shiftKey ? -1 : 1);
+  } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    const delta = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = nextTextSearchHistoryIndex(textSearchHistoryIndex, delta, textSearchHistory.length);
+    if (nextIndex < 0) return;
+
+    event.preventDefault();
+    textSearchHistoryIndex = nextIndex;
+    setTextSearchHistoryMenuOpen(true);
   } else if (event.key === 'Escape') {
     event.preventDefault();
+    if (!textSearchHistoryMenu.hidden) {
+      setTextSearchHistoryMenuOpen(false);
+      return;
+    }
     closeTextSearch();
+  }
+});
+
+textSearchHistoryButton.addEventListener('click', () => {
+  setTextSearchHistoryMenuOpen(Boolean(textSearchHistoryMenu.hidden));
+  textSearchInput.focus();
+});
+
+document.addEventListener('pointerdown', (event) => {
+  if (!textSearchHistoryMenu.hidden && event.target instanceof Node && !textSearchBar.contains(event.target)) {
+    setTextSearchHistoryMenuOpen(false);
   }
 });
 
