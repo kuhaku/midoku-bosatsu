@@ -407,7 +407,7 @@ app.innerHTML = `
           <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
           <div id="bbs-timeline-menu" class="bbs-timeline-menu" role="menu" aria-label="表示するBBSを選択"></div>
         </div>
-        <button id="saved-posts-button" type="button" hidden>保存済み投稿一覧</button>
+        <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
         <button id="shortcut-key-list-button" type="button">キー一覧</button>
         <button id="new-post-button" type="button" disabled>新規投稿</button>
         <button id="settings-button" type="button" disabled>設定</button>
@@ -486,6 +486,7 @@ app.innerHTML = `
             <dt><kbd>t</kbd></dt><dd>スレッド表示を開く</dd>
             <dt><kbd>Ctrl + t / Command + t</kbd></dt><dd>スレッドのツリー表示を開く</dd>
             <dt><kbd>d</kbd></dt><dd>現在の投稿を保存／解除</dd>
+            <dt><kbd>Ctrl + d / Command + d</kbd></dt><dd>保存済み投稿一覧を開く／閉じる</dd>
             <dt><kbd>Ctrl + r / Command + r</kbd></dt><dd>未読リロード</dd>
             <dt><kbd>Ctrl + b / Command + b</kbd></dt><dd>左ナビを表示／非表示</dd>
             <dt><kbd>Ctrl + 1〜9 / Command + 1〜9</kbd></dt><dd>登録順のBBS投稿だけを表示</dd>
@@ -4597,6 +4598,16 @@ function shouldHandleModifiedNavigationShortcut(event: KeyboardEvent): boolean {
   return true;
 }
 
+function shouldHandleSavedPostsViewShortcut(event: KeyboardEvent): boolean {
+  if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
+  if (!(config?.global.post_saving_enabled ?? true)) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return false;
+  if (event.key.toLowerCase() !== 'd') return false;
+  if (isEditableKeyboardTarget(event.target)) return false;
+  if (!settingsDialog.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden) return false;
+  return savedPostsView.hidden ? Boolean(bbsActionView.hidden) : true;
+}
+
 function shouldHandleBbsTimelineShortcut(event: KeyboardEvent): boolean {
   if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return false;
@@ -6850,6 +6861,16 @@ document.addEventListener('keydown', async (event) => {
   if (isTextSearchShortcut(event) && shortcutKeyListView.hidden) {
     event.preventDefault();
     openTextSearch();
+    return;
+  }
+
+  if (shouldHandleSavedPostsViewShortcut(event)) {
+    event.preventDefault();
+    if (savedPostsView.hidden) {
+      openSavedPostsView();
+    } else {
+      closeSavedPostsView();
+    }
     return;
   }
 

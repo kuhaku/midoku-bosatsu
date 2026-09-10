@@ -29,3 +29,14 @@ test('既存設定では投稿保存機能をONとして扱う', () => {
   assert.match(configSource, /#\[serde\(default = "default_true"\)\][\s\S]*?post_saving_enabled: bool/u);
   assert.match(mainSource, /generalPostSavingEnabledInput\.checked = generalDraftGlobal\.post_saving_enabled \?\? true/u);
 });
+
+test('投稿保存機能がONのときだけCtrlまたはCommand+Dで保存済み投稿一覧を開閉できる', () => {
+  assert.match(
+    mainSource,
+    /function shouldHandleSavedPostsViewShortcut\(event: KeyboardEvent\): boolean \{[\s\S]*?post_saving_enabled \?\? true[\s\S]*?event\.metaKey \|\| event\.ctrlKey[\s\S]*?event\.key\.toLowerCase\(\) !== 'd'[\s\S]*?isEditableKeyboardTarget\(event\.target\)/u,
+  );
+  assert.match(
+    mainSource,
+    /if \(shouldHandleSavedPostsViewShortcut\(event\)\) \{\s*event\.preventDefault\(\);\s*if \(savedPostsView\.hidden\) \{\s*openSavedPostsView\(\);\s*\} else \{\s*closeSavedPostsView\(\);\s*\}\s*return;/u,
+  );
+});

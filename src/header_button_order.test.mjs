@@ -11,7 +11,7 @@ test('左ナビに主要操作を指定順で置き、タイムライン見出�
   assert.ok(navigation, '左ナビが見つかりません');
   assert.deepEqual(
     [...navigation.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]),
-    ['未読リロード', 'BBS表示切替', '保存済み投稿一覧', 'キー一覧', '新規投稿', '設定'],
+    ['未読リロード', 'BBS表示切替', '保存済み投稿', 'キー一覧', '新規投稿', '設定'],
   );
   assert.doesNotMatch(navigation, /timeline-unread-jump-button/u);
   assert.doesNotMatch(mainSource, /<h1>未読菩薩<\/h1>/u);

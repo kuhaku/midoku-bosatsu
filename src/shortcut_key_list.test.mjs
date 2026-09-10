@@ -11,7 +11,7 @@ test('キー一覧は保存済み投稿一覧の直下から開けて、Escで�
   assert.ok(navigation, '左ナビが見つかりません');
   assert.match(
     navigation,
-    /id="saved-posts-button"[\s\S]*?保存済み投稿一覧<\/button>\s*<button id="shortcut-key-list-button"[^>]*>キー一覧<\/button>/u,
+    /id="saved-posts-button"[\s\S]*?保存済み投稿<\/button>\s*<button id="shortcut-key-list-button"[^>]*>キー一覧<\/button>/u,
   );
   assert.match(mainSource, /id="shortcut-key-list-view"/u);
   assert.match(mainSource, /shortcutKeyListButton\.addEventListener\('click', openShortcutKeyListView\);/u);
@@ -40,6 +40,7 @@ test('キー一覧は投稿操作と検索操作を利用者向けに説明す�
     ['t', 'スレッド表示を開く'],
     ['Ctrl + t / Command + t', 'スレッドのツリー表示を開く'],
     ['d', '現在の投稿を保存／解除'],
+    ['Ctrl + d / Command + d', '保存済み投稿一覧を開く／閉じる'],
     ['Ctrl + r / Command + r', '未読リロード'],
     ['Ctrl + b / Command + b', '左ナビを表示／非表示'],
     ['Ctrl + 1〜9 / Command + 1〜9', '登録順のBBS投稿だけを表示'],
