@@ -856,7 +856,7 @@ button:disabled { cursor: default; opacity: .45; }
   bottom: 10px;
   padding: 5px 8px;
   border-radius: 4px;
-  color: #fff;
+  color: #f8f9fa;
   background: rgb(0 0 0 / 75%);
   font-weight: 700;
 }
@@ -895,7 +895,7 @@ button:disabled { cursor: default; opacity: .45; }
   box-sizing: border-box;
   padding: 6px 10px;
   overflow: hidden;
-  color: #fff;
+  color: #f8f9fa;
   background: rgb(0 0 0 / 75%);
   font-weight: 700;
   line-height: 1.35;
@@ -909,7 +909,7 @@ button:disabled { cursor: default; opacity: .45; }
   bottom: 10px;
   padding: 5px 8px;
   border-radius: 4px;
-  color: #fff;
+  color: #f8f9fa;
   background: rgb(0 0 0 / 75%);
   font-weight: 700;
 }
