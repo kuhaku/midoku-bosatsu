@@ -143,6 +143,17 @@ fn parse_form_candidate(
         return Ok(None);
     }
 
+    if site.reload_form.gzip {
+        if let Some(field) = fields.iter_mut().find(|field| field.name == "g") {
+            field.value = "checked".to_owned();
+        } else {
+            fields.push(FormField {
+                name: "g".to_owned(),
+                value: "checked".to_owned(),
+            });
+        }
+    }
+
     Ok(Some(ParsedReloadForm {
         action,
         method,
@@ -206,6 +217,7 @@ mod tests {
                 method: "POST".into(),
                 referer: "https://example.invalid/bbs.cgi".into(),
                 include_hidden: true,
+                gzip: true,
             },
         }
     }
@@ -255,6 +267,61 @@ mod tests {
         assert!(!names.contains(&"commented"));
         assert!(!names.contains(&"unchecked"));
         assert!(!names.contains(&"post"));
+    }
+
+    #[test]
+    fn gzip_enabled_adds_checked_parameter_to_unread_reload_form() {
+        let mut site = site_config();
+        site.reload_form.gzip = true;
+        let html = r#"
+            <form action="/bbs.cgi" method="post">
+              <input type="checkbox" name="g" value="checked">
+              <input type="submit" name="midokureload" value="reload">
+            </form>
+        "#;
+
+        let parsed = parse_reload_form(html, &site).unwrap();
+        let body = String::from_utf8(encode_reload_form(&parsed, "utf-8").unwrap()).unwrap();
+
+        assert_eq!(body, "midokureload=reload&g=checked");
+    }
+
+    #[test]
+    fn missing_gzip_setting_defaults_unread_reload_to_compressed() {
+        let mut config = serde_json::to_value(site_config()).unwrap();
+        config["reload_form"]
+            .as_object_mut()
+            .unwrap()
+            .remove("gzip");
+        let site: SiteConfig = serde_json::from_value(config).unwrap();
+        let html = r#"
+            <form action="/bbs.cgi" method="post">
+              <input type="checkbox" name="g" value="checked">
+              <input type="submit" name="midokureload" value="reload">
+            </form>
+        "#;
+
+        let parsed = parse_reload_form(html, &site).unwrap();
+        let body = String::from_utf8(encode_reload_form(&parsed, "utf-8").unwrap()).unwrap();
+
+        assert_eq!(body, "midokureload=reload&g=checked");
+    }
+
+    #[test]
+    fn gzip_disabled_keeps_unchecked_parameter_out_of_unread_reload_form() {
+        let mut site = site_config();
+        site.reload_form.gzip = false;
+        let html = r#"
+            <form action="/bbs.cgi" method="post">
+              <input type="checkbox" name="g" value="checked">
+              <input type="submit" name="midokureload" value="reload">
+            </form>
+        "#;
+
+        let parsed = parse_reload_form(html, &site).unwrap();
+        let body = String::from_utf8(encode_reload_form(&parsed, "utf-8").unwrap()).unwrap();
+
+        assert_eq!(body, "midokureload=reload");
     }
 
     #[test]

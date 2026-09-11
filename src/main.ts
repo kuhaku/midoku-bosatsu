@@ -170,6 +170,7 @@ type ReloadFormConfig = {
   method: string;
   referer: string;
   include_hidden: boolean;
+  gzip: boolean;
 };
 
 type BbsBadgeStyleConfig = {
@@ -992,6 +993,7 @@ app.innerHTML = `
             <section class="settings-section">
               <div class="settings-section-heading">
                 <div><h3>未読リロードFORM</h3></div>
+                <label class="settings-check"><input id="bbs-reload-gzip" type="checkbox"> gzip圧縮</label>
               </div>
               <div class="settings-grid">
                 <label>FORM selector<input id="bbs-form-selector" type="text" spellcheck="false"></label>
@@ -1486,6 +1488,7 @@ const bbsSubmitNameInput = mustElement<HTMLInputElement>('#bbs-submit-name');
 const bbsSubmitFallbacksInput = mustElement<HTMLInputElement>('#bbs-submit-fallbacks');
 const bbsSubmitValueRegexInput = mustElement<HTMLInputElement>('#bbs-submit-value-regex');
 const bbsRefererInput = mustElement<HTMLInputElement>('#bbs-referer');
+const bbsReloadGzipInput = mustElement<HTMLInputElement>('#bbs-reload-gzip');
 
 let config: ReaderConfig | null = null;
 let enabledSites: SiteConfig[] = [];
@@ -5739,6 +5742,7 @@ function createDefaultSiteConfig(): SiteConfig {
       method: 'POST',
       referer: '',
       include_hidden: true,
+      gzip: true,
     },
   };
 }
@@ -5907,6 +5911,7 @@ function commitBbsEditorForm(): void {
   reload.method = bbsMethodInput.value;
   reload.referer = bbsRefererInput.value.trim();
   reload.include_hidden = true;
+  reload.gzip = bbsReloadGzipInput.checked;
 }
 
 function renderBbsEditor(): void {
@@ -5975,6 +5980,7 @@ function renderBbsEditor(): void {
   bbsSubmitFallbacksInput.value = site.reload_form.submit_input_name_fallbacks.join(', ');
   bbsSubmitValueRegexInput.value = site.reload_form.submit_value_regex;
   bbsRefererInput.value = site.reload_form.referer;
+  bbsReloadGzipInput.checked = site.reload_form.gzip ?? true;
   updateParserModeFields();
 }
 

@@ -40,6 +40,7 @@ submit_value_regex = "未読"
 method = "POST"
 referer = "https://misao.mixh.jp/cgi-bin/bbs.cgi"
 include_hidden = true
+gzip = true
 
 # -----------------------------------------------------------------------------
 # あやしいわーるど＠本店退避
@@ -80,6 +81,7 @@ submit_value_regex = "未読"
 method = "POST"
 referer = "https://honten.info/bbs/cgi-bin/bbs.cgi"
 include_hidden = true
+gzip = true
 
 # -----------------------------------------------------------------------------
 # あやしいわーるど＠おこめ.暫暫定
@@ -120,3 +122,4 @@ submit_value_regex = "未読|Unread|UNREAD"
 method = "POST"
 referer = "https://komekuitai.sakura.ne.jp/znti/bbs.php"
 include_hidden = true
+gzip = true

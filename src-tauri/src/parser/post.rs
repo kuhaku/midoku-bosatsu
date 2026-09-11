@@ -506,6 +506,7 @@ mod tests {
                 method: "POST".into(),
                 referer: "https://example.invalid/bbs.cgi".into(),
                 include_hidden: true,
+                gzip: true,
             },
         }
     }

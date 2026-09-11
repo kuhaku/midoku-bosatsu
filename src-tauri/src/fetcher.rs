@@ -844,6 +844,7 @@ mod tests {
                 method: "POST".into(),
                 referer: url.into(),
                 include_hidden: true,
+                gzip: true,
             },
         }
     }

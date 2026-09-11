@@ -243,6 +243,8 @@ pub struct ReloadFormConfig {
     pub referer: String,
     #[serde(default = "default_true")]
     pub include_hidden: bool,
+    #[serde(default = "default_true")]
+    pub gzip: bool,
 }
 
 fn default_true() -> bool {
