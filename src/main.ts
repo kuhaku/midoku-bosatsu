@@ -62,6 +62,12 @@ import {
 } from './new_post_destination.ts';
 import { shouldRequestPostCloseConfirmation } from './post_close_confirmation.ts';
 import { isPostSubmitShortcut } from './post_submit_shortcut.ts';
+import {
+  postFormFieldGroup,
+  postFormFieldItemOrder,
+  postFormFieldWidth,
+  postFormLabelLayout,
+} from './post_form_field_layout.ts';
 import { isPostNavigationShortcutTarget } from './keyboard_shortcut_target.ts';
 import { isShortcutKeyListNavigationVisible } from './shortcut_key_list_visibility.ts';
 import {
@@ -455,7 +461,6 @@ app.innerHTML = `
     <div class="bbs-action-view-shell" role="dialog" aria-modal="true" aria-labelledby="saved-posts-view-title">
       <header class="bbs-action-view-header">
         <div>
-          <span class="status-label">SAVED POSTS</span>
           <h2 id="saved-posts-view-title">保存済み投稿</h2>
         </div>
         <button id="saved-posts-view-close" class="icon-button" type="button" aria-label="保存済み投稿を閉じる">閉じる</button>
@@ -3644,7 +3649,7 @@ function createPostFormControl(
   }
 
   const label = document.createElement('label');
-  label.className = 'bbs-follow-post-field';
+  label.className = `bbs-follow-post-field is-${postFormLabelLayout(control.user_field)} is-${postFormFieldWidth(control.user_field)}-width`;
 
   const caption = document.createElement('span');
   caption.className = 'bbs-follow-post-label';
@@ -3735,33 +3740,40 @@ function buildPostForm(
   form.className = 'bbs-follow-post-form';
   form.autocomplete = 'off';
 
-  const heading = document.createElement('div');
-  heading.className = 'bbs-follow-post-form-heading';
-  const title = document.createElement('strong');
-  title.textContent = kind === 'follow'
-    ? 'フォロー投稿'
-    : `新規投稿 — ${siteNames.get(siteId) ?? siteId}`;
-  const note = document.createElement('small');
-  note.textContent = kind === 'follow'
-    ? '元BBSのフォロー投稿フォームを使用して送信します。コメントアウトされたタグは送信しません。'
-    : '選択したBBSの通常投稿フォームを使用して送信します。コメントアウトされたタグは送信しません。';
-  heading.append(title, note);
-  form.append(heading);
-
   const fields = document.createElement('div');
   fields.className = 'bbs-follow-post-fields';
-  const elements = new Map<string, PostFormControlElement>();
-  for (const control of postForm.controls) {
-    const field = createPostFormControl(control, elements);
-    if (field) fields.append(field);
-  }
-  form.append(fields);
+  const authorFields = document.createDocumentFragment();
+  const emailFields = document.createDocumentFragment();
+  const subjectActionRow = document.createElement('div');
+  subjectActionRow.className = 'bbs-follow-subject-action-row';
   const encodingWarning = document.createElement('div');
   encodingWarning.className = 'bbs-follow-post-encoding-warning';
   encodingWarning.setAttribute('role', 'status');
   encodingWarning.setAttribute('aria-live', 'polite');
   encodingWarning.hidden = true;
-  form.append(encodingWarning);
+  const elements = new Map<string, PostFormControlElement>();
+  for (const control of postForm.controls) {
+    const userField = control.user_field;
+    if (!userField) continue;
+    const field = createPostFormControl(control, elements);
+    if (!field) continue;
+    const group = postFormFieldGroup(userField);
+    if (group === 'author-row') {
+      authorFields.append(field);
+    } else if (group === 'email-row') {
+      emailFields.append(field);
+    } else if (group === 'subject-actions') {
+      subjectActionRow.append(field);
+    } else {
+      for (const item of postFormFieldItemOrder(userField)) {
+        fields.append(item === 'encoding-warning' ? encodingWarning : field);
+      }
+    }
+  }
+  if (subjectActionRow.childElementCount > 0) fields.prepend(subjectActionRow);
+  if (emailFields.childElementCount > 0) fields.prepend(emailFields);
+  if (authorFields.childElementCount > 0) fields.prepend(authorFields);
+  form.append(fields);
   let encodingWarningRequestSerial = 0;
   const refreshEncodingWarning = () => {
     const requestSerial = ++encodingWarningRequestSerial;
@@ -3806,8 +3818,13 @@ function buildPostForm(
   status.className = 'bbs-follow-post-status';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  actions.append(submitButton, clearButton, status);
-  form.append(actions);
+  actions.append(submitButton, clearButton);
+  if (subjectActionRow.childElementCount > 0) {
+    subjectActionRow.append(actions);
+  } else {
+    form.append(actions);
+  }
+  form.append(status);
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

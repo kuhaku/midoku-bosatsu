@@ -2365,23 +2365,15 @@ button:disabled { cursor: default; opacity: .45; }
   background: var(--color-bg);
 }
 
-.bbs-follow-post-form-heading {
-  display: grid;
-  gap: 4px;
-}
-
-.bbs-follow-post-form-heading strong {
-  font-size: 15px;
-  color: var(--color-text);
-}
-
-.bbs-follow-post-form-heading small {
-  color: var(--color-subtle);
-  line-height: 1.45;
-}
-
 .bbs-follow-post-fields {
   display: grid;
+  gap: 10px;
+}
+
+.bbs-follow-subject-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 10px;
 }
 
@@ -2391,6 +2383,16 @@ button:disabled { cursor: default; opacity: .45; }
   min-width: 0;
   color: var(--color-text);
   font-weight: 700;
+}
+
+.bbs-follow-post-field.is-inline {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.bbs-follow-post-field.is-compact-width {
+  grid-template-columns: auto minmax(0, 360px);
+  justify-content: start;
 }
 
 .bbs-follow-post-label {
@@ -2443,7 +2445,7 @@ button:disabled { cursor: default; opacity: .45; }
 .bbs-follow-post-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
 }
 
@@ -2457,6 +2459,10 @@ button:disabled { cursor: default; opacity: .45; }
   color: var(--color-muted);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.bbs-follow-post-status:empty {
+  display: none;
 }
 
 .bbs-follow-post-status.is-error {
