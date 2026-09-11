@@ -9,6 +9,7 @@ config_version = 5
 poll_interval_seconds = 90
 max_posts = 666
 post_saving_enabled = true
+show_participant_counts = true
 # newest_first: 新しい投稿を上 / oldest_first: 古い投稿を上
 post_order = "newest_first"
 

@@ -75,6 +75,7 @@ import {
   filterPostsForBbsTimeline,
 } from './bbs_timeline_shortcut.ts';
 import { bbsTimelineMenuItems } from './bbs_timeline_menu.ts';
+import { participantCountItems } from './bbs_participant_counts.ts';
 import { formatCopiedPostFirstLine } from './post_copy_format.ts';
 import { isReferencePostLink } from './post_link_actions.ts';
 import {
@@ -125,6 +126,7 @@ type GlobalConfig = {
   viewing_mode_interval_seconds: number;
   tree_view_enabled: boolean;
   post_saving_enabled: boolean;
+  show_participant_counts: boolean;
   hide_tree_link: boolean;
   hide_thread_hide_link: boolean;
   expand_numeric_character_references: boolean;
@@ -365,6 +367,7 @@ type SiteFetchResult = {
   site_name: string;
   request_method: 'GET' | 'POST' | string;
   fetched_at: string;
+  participant_count: number | null;
   posts: ParsedPost[];
   reply_detected: boolean;
   reply_post_ids: string[];
@@ -437,6 +440,7 @@ app.innerHTML = `
         </div>
 
         <section class="timeline-card">
+          <div id="bbs-participant-counts" class="bbs-participant-counts" aria-label="各掲示板の現在の参加者" hidden></div>
           <div id="notice" class="notice">掲示板へ接続しています…</div>
           <div id="posts" class="posts" aria-live="polite"></div>
         </section>
@@ -620,6 +624,10 @@ app.innerHTML = `
               <label>投稿表示上限数
                 <input id="general-max-posts" type="number" min="1" max="100000" step="1">
                 <small>各BBSごとに保持する最大投稿数です。 (登録したBBSが 3 で、投稿表示上限数が 100 なら、最大で 3 * 100 = 300件の投稿を保持します)</small>
+              </label>
+              <label class="settings-check settings-check-card">
+                <input id="general-show-participant-counts" type="checkbox"> 現在の参加者を表示する
+                <small>ONのとき、投稿タイムラインの最上部に各BBSの現在の参加者数を表示します。</small>
               </label>
               <label class="settings-check settings-check-card">
                 <input id="general-post-saving-enabled" type="checkbox"> 投稿保存機能をONにする
@@ -1181,6 +1189,7 @@ const threadHideUndoButton = mustElement<HTMLButtonElement>('#thread-hide-undo-b
 const bbsTimelineToast = mustElement<HTMLElement>('#bbs-timeline-toast');
 const fixedStatusBar = mustElement<HTMLElement>('#fixed-status-bar');
 const noticeElement = mustElement<HTMLElement>('#notice');
+const bbsParticipantCounts = mustElement<HTMLDivElement>('#bbs-participant-counts');
 const postsElement = mustElement<HTMLDivElement>('#posts');
 const bbsActionView = mustElement<HTMLElement>('#bbs-action-view');
 const bbsActionViewShell = mustElement<HTMLElement>('.bbs-action-view-shell');
@@ -1328,6 +1337,7 @@ const treeColorFieldsElement = mustElement<HTMLDivElement>('#tree-color-fields')
 const generalPollIntervalInput = mustElement<HTMLInputElement>('#general-poll-interval');
 const generalPollIntervalWarning = mustElement<HTMLElement>('#general-poll-interval-warning');
 const generalMaxPostsInput = mustElement<HTMLInputElement>('#general-max-posts');
+const generalShowParticipantCountsInput = mustElement<HTMLInputElement>('#general-show-participant-counts');
 const generalPostSavingEnabledInput = mustElement<HTMLInputElement>('#general-post-saving-enabled');
 const generalTreeViewEnabledInput = mustElement<HTMLInputElement>('#general-tree-view-enabled');
 const generalHideTreeLinkInput = mustElement<HTMLInputElement>('#general-hide-tree-link');
@@ -1515,6 +1525,7 @@ const postsByKey = new Map<string, ParsedPost>();
 let savedPosts: SavedPost<ParsedPost>[] = [];
 const siteNames = new Map<string, string>();
 const siteBaseUrls = new Map<string, string>();
+const participantCounts = new Map<string, number | null>();
 let bbsEditorSites: SiteConfig[] = [];
 let selectedBbsIndex = -1;
 let bbsSettingsDirty = false;
@@ -4662,6 +4673,32 @@ function renderBbsTimelineMenu(): void {
   bbsTimelineMenu.replaceChildren(fragment);
 }
 
+function renderParticipantCounts(): void {
+  const visible = config?.global.show_participant_counts ?? true;
+  const fragment = document.createDocumentFragment();
+  for (const item of participantCountItems(
+    config?.sites ?? [],
+    participantCounts,
+    visible,
+  )) {
+    const entry = document.createElement('span');
+    entry.className = 'bbs-participant-count';
+
+    const badge = document.createElement('span');
+    badge.className = `site-badge ${bbsBadgeClassName(item.siteId)}`;
+    badge.textContent = item.siteName;
+
+    const count = document.createElement('span');
+    count.className = 'bbs-participant-count-value';
+    count.textContent = item.countLabel;
+
+    entry.append(badge, count);
+    fragment.append(entry);
+  }
+  bbsParticipantCounts.replaceChildren(fragment);
+  bbsParticipantCounts.hidden = !visible || !bbsParticipantCounts.hasChildNodes();
+}
+
 function selectBbsTimeline(selection: string | null): void {
   selectedBbsTimelineSiteId = selection;
   currentPostKey = null;
@@ -4702,6 +4739,7 @@ function toggleTimelineNavigation(): void {
 
 function renderPosts(): void {
   const anchor = captureScrollAnchor();
+  renderParticipantCounts();
   const posts = filterPostsForBbsTimeline(sortedPosts(), selectedBbsTimelineSiteId)
     .filter((post) => !isNgPost(post));
   const fragment = document.createDocumentFragment();
@@ -5145,6 +5183,7 @@ function renderGeneralSettingsForm(): void {
   generalPollIntervalInput.value = String(generalDraftGlobal.poll_interval_seconds);
   updatePollIntervalWarning();
   generalMaxPostsInput.value = String(generalDraftGlobal.max_posts);
+  generalShowParticipantCountsInput.checked = generalDraftGlobal.show_participant_counts ?? true;
   generalPostSavingEnabledInput.checked = generalDraftGlobal.post_saving_enabled ?? true;
   generalTreeViewEnabledInput.checked = generalDraftGlobal.tree_view_enabled ?? false;
   generalHideTreeLinkInput.checked = !(generalDraftGlobal.hide_tree_link ?? false);
@@ -5227,6 +5266,7 @@ function commitGeneralSettingsForm(): void {
   if (Number.isFinite(pollInterval)) generalDraftGlobal.poll_interval_seconds = pollInterval;
   const maxPosts = Number.parseInt(generalMaxPostsInput.value, 10);
   if (Number.isFinite(maxPosts)) generalDraftGlobal.max_posts = maxPosts;
+  generalDraftGlobal.show_participant_counts = generalShowParticipantCountsInput.checked;
   generalDraftGlobal.post_saving_enabled = generalPostSavingEnabledInput.checked;
   generalDraftGlobal.tree_view_enabled = generalTreeViewEnabledInput.checked;
   generalDraftGlobal.hide_tree_link = !generalHideTreeLinkInput.checked;
@@ -5502,6 +5542,7 @@ async function reloadUnreadAfterFollowPost(siteId: string): Promise<void> {
   try {
     const result = await invoke<SiteFetchResult>('reload_site_unread', { siteId });
     initializedSites.add(siteId);
+    participantCounts.set(siteId, result.participant_count);
     mergePosts(result.posts);
     siteFetchErrors.delete(siteId);
     lastBbsDataFetchedAtMs = Date.now();
@@ -5552,6 +5593,7 @@ async function runFetchCycle(forceInitial = false): Promise<void> {
     for (const outcome of outcomes) {
       if (outcome.result) {
         initializedSites.add(outcome.site.id);
+        participantCounts.set(outcome.site.id, outcome.result.participant_count);
         successfulResults.push(outcome.result);
         mergePosts(outcome.result.posts);
         // 同じBBSが正常取得できた時点で、そのBBSの過去の取得エラーは解消扱いにする。
@@ -6095,6 +6137,7 @@ async function applyBbsConfigAfterSave(loadedConfig: ReaderConfig): Promise<void
   lastBbsDataFetchedAtMs = null;
   scheduleUnreadReloadButtonUpdate();
   siteFetchErrors.clear();
+  participantCounts.clear();
   siteNames.clear();
   siteBaseUrls.clear();
   for (const site of enabledSites) {
@@ -6303,6 +6346,7 @@ async function bootstrap(): Promise<void> {
     enabledSites = loadedConfig.sites.filter((site) => site.enabled);
     renderBbsTimelineMenu();
     applyBbsBadgeStyles(loadedConfig.sites);
+    renderParticipantCounts();
     savedReaderStyle = loadedStyle;
     settingsButton.disabled = false;
     newPostButton.disabled = enabledSites.length === 0;

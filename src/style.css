@@ -480,6 +480,34 @@ button:disabled { cursor: default; opacity: .45; }
   overflow: hidden;
 }
 
+.bbs-participant-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--post-border-color);
+  background: var(--post-background-color);
+  color: var(--post-text-color);
+  font-family: var(--post-font-family);
+  font-size: var(--post-font-size);
+}
+
+.bbs-participant-counts[hidden] {
+  display: none !important;
+}
+
+.bbs-participant-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.bbs-participant-count-value {
+  font-variant-numeric: tabular-nums;
+}
+
 
 .notice {
   margin: 20px;

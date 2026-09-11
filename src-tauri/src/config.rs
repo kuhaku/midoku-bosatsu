@@ -49,6 +49,8 @@ pub struct GlobalConfig {
     pub tree_view_enabled: bool,
     #[serde(default = "default_true")]
     pub post_saving_enabled: bool,
+    #[serde(default = "default_true")]
+    pub show_participant_counts: bool,
     #[serde(default)]
     pub hide_tree_link: bool,
     #[serde(default)]
@@ -1114,6 +1116,7 @@ post_order = "newest_first"
         assert!(!config.global.hide_tree_link);
         assert!(!config.global.hide_thread_hide_link);
         assert!(config.global.post_saving_enabled);
+        assert!(config.global.show_participant_counts);
     }
 
     #[test]

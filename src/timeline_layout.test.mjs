@@ -38,3 +38,10 @@ test('すべて既読ボタンとその参照を削除する', () => {
   assert.doesNotMatch(mainSource, /mark-read-button/u);
   assert.doesNotMatch(mainSource, /markReadButton/u);
 });
+
+test('現在の参加者表示がOFFのときは参加者欄のdiv自体を非表示にする', () => {
+  assert.match(
+    styleSource,
+    /\.bbs-participant-counts\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/u,
+  );
+});

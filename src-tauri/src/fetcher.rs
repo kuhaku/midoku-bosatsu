@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    sync::OnceLock,
     time::Duration,
 };
 
@@ -70,6 +71,18 @@ fn extract_youtube_video_title(html: &str) -> Option<String> {
         .filter(|title| !title.is_empty())
         .map(ToOwned::to_owned);
     title
+}
+
+fn extract_participant_count(html: &str) -> Option<u32> {
+    static PARTICIPANT_COUNT_REGEX: OnceLock<regex::Regex> = OnceLock::new();
+    let regex = PARTICIPANT_COUNT_REGEX.get_or_init(|| {
+        regex::Regex::new(
+            r"現在の参加者(?:\s|&nbsp;)*[:：](?:\s|&nbsp;)*([0-9]+)(?:\s|&nbsp;)*(?:名|人)",
+        )
+        .expect("participant-count regex must be valid")
+    });
+
+    regex.captures(html)?.get(1)?.as_str().parse::<u32>().ok()
 }
 
 /// HTTPクライアントと、各サイトの「次回未読リロード用FORM」および
@@ -590,6 +603,7 @@ impl ReaderState {
             site_name: site.name.clone(),
             request_method: request_method.to_owned(),
             fetched_at: chrono::Utc::now().to_rfc3339(),
+            participant_count: extract_participant_count(&html),
             posts,
             reply_detected: false,
             reply_post_ids: Vec::new(),
@@ -832,6 +846,24 @@ mod tests {
                 include_hidden: true,
             },
         }
+    }
+
+    #[test]
+    fn extracts_participant_count_with_regular_spaces_and_name_unit() {
+        assert_eq!(extract_participant_count("現在の参加者 : 27名"), Some(27));
+    }
+
+    #[test]
+    fn extracts_participant_count_with_non_breaking_spaces_and_person_unit() {
+        assert_eq!(
+            extract_participant_count("現在の参加者\u{00a0}:\u{00a0}8人"),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn participant_count_is_missing_when_the_label_does_not_match() {
+        assert_eq!(extract_participant_count("参加人数 : 12名"), None);
     }
 
     #[test]

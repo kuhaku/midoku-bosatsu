@@ -109,6 +109,9 @@ pub struct SiteFetchResult {
     pub request_method: String,
     /// RFC 3339 / UTC。
     pub fetched_at: String,
+    /// 掲示板HTMLの「現在の参加者」表記から抽出した人数。
+    #[serde(default)]
+    pub participant_count: Option<u32>,
     pub posts: Vec<ParsedPost>,
     #[serde(default)]
     pub reply_detected: bool,
