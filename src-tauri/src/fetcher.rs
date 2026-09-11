@@ -47,6 +47,31 @@ fn fxtwitter_status_endpoint(
     Ok(endpoint)
 }
 
+fn youtube_watch_url(video_id: &str) -> Result<Url, String> {
+    if video_id.len() != 11
+        || !video_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+    {
+        return Err("YouTubeの動画IDが不正です".to_string());
+    }
+    Url::parse(&format!("https://www.youtube.com/watch?v={video_id}"))
+        .map_err(|e| format!("YouTube動画URLの生成に失敗しました: {e}"))
+}
+
+fn extract_youtube_video_title(html: &str) -> Option<String> {
+    let document = kuchikiki::parse_html().one(html).document_node;
+    let metadata = document.select_first(r#"meta[property="og:title"]"#).ok()?;
+    let title = metadata
+        .attributes
+        .borrow()
+        .get("content")
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(ToOwned::to_owned);
+    title
+}
+
 /// HTTPクライアントと、各サイトの「次回未読リロード用FORM」および
 /// 「新規投稿FORMの参照元となる最新メインHTML」を保持する。
 ///
@@ -118,6 +143,34 @@ impl ReaderState {
             .map_err(|e| format!("FxTwitter APIのレスポンス読み込みに失敗しました: {e}"))?;
         serde_json::from_slice(&body)
             .map_err(|e| format!("FxTwitter APIのレスポンス解析に失敗しました: {e}"))
+    }
+
+    pub async fn fetch_youtube_video_title(
+        &self,
+        video_id: &str,
+    ) -> Result<Option<String>, String> {
+        let url = youtube_watch_url(video_id)?;
+        let response = self
+            .client
+            .get(url)
+            .header(USER_AGENT, "Midoku Bosatsu YouTube Preview")
+            .header(ACCEPT, "text/html")
+            .send()
+            .await
+            .map_err(|e| format!("YouTube動画ページの取得に失敗しました: {e}"))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!(
+                "YouTube動画ページがHTTPエラーを返しました: {} {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or("")
+            ));
+        }
+        let html = response
+            .text()
+            .await
+            .map_err(|e| format!("YouTube動画ページの読み込みに失敗しました: {e}"))?;
+        Ok(extract_youtube_video_title(&html))
     }
 
     pub async fn clear_reload_forms(&self) {
@@ -811,6 +864,20 @@ mod tests {
             "https://api.fxtwitter.com/2/status/123456789?lang=ja"
         );
         assert!(fxtwitter_status_endpoint("123456789", Some("japanese")).is_err());
+    }
+
+    #[test]
+    fn extracts_youtube_title_from_open_graph_metadata() {
+        let html = r#"
+          <html><head>
+            <meta property="og:title" content="&quot;Weird Al&quot; Yankovic - Eat It (Official 4K Video)">
+          </head></html>
+        "#;
+
+        assert_eq!(
+            extract_youtube_video_title(html),
+            Some("\"Weird Al\" Yankovic - Eat It (Official 4K Video)".to_string())
+        );
     }
 
     #[test]

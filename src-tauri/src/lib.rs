@@ -144,6 +144,14 @@ async fn fetch_fxtwitter_status(
 }
 
 #[tauri::command]
+async fn fetch_youtube_video_title(
+    state: State<'_, ReaderState>,
+    video_id: String,
+) -> Result<Option<String>, String> {
+    state.fetch_youtube_video_title(&video_id).await
+}
+
+#[tauri::command]
 fn save_general_settings(
     app: AppHandle,
     service: State<'_, ReplyNotificationService>,
@@ -488,6 +496,7 @@ pub fn run() {
             save_bbs_config,
             get_reader_style,
             fetch_fxtwitter_status,
+            fetch_youtube_video_title,
             save_general_settings,
             get_reply_notification_ui_state,
             get_reply_notification_tracked_roots,

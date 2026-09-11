@@ -24,22 +24,6 @@ export function truncateYouTubePreviewTitle(title: string): string {
   return `${graphemes.slice(0, YOUTUBE_PREVIEW_TITLE_LIMIT).join('')}…`;
 }
 
-export async function fetchYouTubeVideoTitle(videoUrl: string): Promise<string | null> {
-  try {
-    const response = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`,
-    );
-    if (!response.ok) return null;
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object' || !('title' in data) || typeof data.title !== 'string') {
-      return null;
-    }
-    return data.title;
-  } catch {
-    return null;
-  }
-}
-
 export function parseYouTubeVideoUrl(rawUrl: string): YouTubeVideoReference | null {
   let url: URL;
   try {

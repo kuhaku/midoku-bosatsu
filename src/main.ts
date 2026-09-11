@@ -98,7 +98,6 @@ import {
 } from './fxtwitter_preview.ts';
 import {
   buildYouTubeThumbnailUrl,
-  fetchYouTubeVideoTitle,
   parseYouTubeVideoUrl,
   truncateYouTubePreviewTitle,
 } from './youtube_preview.ts';
@@ -2426,9 +2425,9 @@ function appendYouTubePreviews(body: HTMLElement): void {
     preview.append(playLink);
     link.after(preview);
 
-    void fetchYouTubeVideoTitle(reference.url).then((videoTitle) => {
+    void invoke<string | null>('fetch_youtube_video_title', { videoId: reference.id }).then((videoTitle) => {
       if (videoTitle) title.textContent = truncateYouTubePreviewTitle(videoTitle);
-    });
+    }).catch(() => null);
   }
 }
 

@@ -40,6 +40,13 @@ test('YouTubeプレビューのタイトルは25文字を超える場合に省�
   assert.equal(truncateYouTubePreviewTitle('😀'.repeat(26)), `${'😀'.repeat(25)}…`);
 });
 
+test('YouTubeプレビューのタイトルはバックエンド経由で取得する', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+  assert.match(main, /invoke<string \| null>\('fetch_youtube_video_title', \{ videoId: reference\.id \}\)/u);
+});
+
 test('YouTubeプレビューは設定で無効化でき、初期値はOFFである', async () => {
   const { readFile } = await import('node:fs/promises');
   const [main, globalConfig] = await Promise.all([
