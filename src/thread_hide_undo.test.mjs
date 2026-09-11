@@ -23,11 +23,11 @@ test('非表示トーストは一定時間後に自動で閉じる', () => {
   assert.match(styleSource, /\.thread-hide-undo-toast\[hidden\]\s*\{\s*display:\s*none !important;/u);
 });
 
-test('非表示トーストは指定の背景色・枠色・太さを使う', () => {
+test('非表示トーストは指定の背景色・枠色・太さをCSS変数で使う', () => {
   const toastStyle = styleSource.match(/\.thread-hide-undo-toast\s*\{[\s\S]*?\n\}/u)?.[0];
   assert.ok(toastStyle, '非表示トーストのスタイルが見つかりません');
-  assert.match(toastStyle, /border:\s*2px solid #ea4335;/u);
-  assert.match(toastStyle, /background:\s*#004040;/u);
+  assert.match(toastStyle, /border:\s*2px solid var\(--post-link-hover-color\);/u);
+  assert.match(toastStyle, /background:\s*var\(--color-bg\);/u);
 });
 
 test('レス通知中は非表示取り消しトーストをその上へ移動する', () => {
