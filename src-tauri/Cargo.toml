@@ -1,6 +1,6 @@
 [package]
 name = "midoku-bosatsu"
-version = "0.5.6"
+version = "0.6.0"
 description = "Midoku Bosatsu: a cross-platform reader for Strange-World BBSs."
 authors = ["Kuhaku"]
 edition = "2021"
