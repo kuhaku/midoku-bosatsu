@@ -93,3 +93,11 @@ test('YouTubeサムネイル枠はリンクの未訪問・訪問済み色を使�
   assert.match(linkRule, /border:\s*1px\s+solid\s+var\(--post-link-unvisited-color\);/u);
   assert.match(style, /\.youtube-preview-link\.link-visited\s*\{[^}]*border-color:\s*var\(--post-link-visited-color\);/u);
 });
+
+test('YouTube動画サムネイルはリンクへのホバー時だけ画像を少し暗くする', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const hoverRule = style.match(/\.youtube-preview-link:hover\s+\.youtube-preview-thumbnail\s*\{[^}]*\}/u)?.[0] ?? '';
+
+  assert.match(hoverRule, /filter:\s*brightness\(85%\);/u);
+});

@@ -164,6 +164,14 @@ test('FxTwitterカードの翻訳リンクはスクリーンネームの右に�
   assert.doesNotMatch(main, /card\.append\(content, translationLink\);/u);
 });
 
+test('Xの動画サムネイルはリンクへのホバー時だけ画像を少し暗くする', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+  const hoverRule = style.match(/\.fxtwitter-preview-video-link:hover\s+\.fxtwitter-preview-video-thumbnail\s*\{[^}]*\}/u)?.[0] ?? '';
+
+  assert.match(hoverRule, /filter:\s*brightness\(85%\);/u);
+});
+
 test('FxTwitterカードはユーザー名と本文URLを外部リンクにする', async () => {
   const { readFile } = await import('node:fs/promises');
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');

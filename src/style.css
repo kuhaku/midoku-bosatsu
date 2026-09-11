@@ -887,6 +887,11 @@ button:disabled { cursor: default; opacity: .45; }
   max-height: var(--fxtwitter-video-thumbnail-size-px);
   background: var(--color-panel-strong);
   object-fit: contain;
+  transition: filter 120ms ease-out;
+}
+
+.fxtwitter-preview-video-link:hover .fxtwitter-preview-video-thumbnail {
+  filter: brightness(85%);
 }
 
 .fxtwitter-preview-video-label {
@@ -924,6 +929,11 @@ button:disabled { cursor: default; opacity: .45; }
   max-height: var(--youtube-video-thumbnail-size-px);
   aspect-ratio: 16 / 9;
   object-fit: cover;
+  transition: filter 120ms ease-out;
+}
+
+.youtube-preview-link:hover .youtube-preview-thumbnail {
+  filter: brightness(85%);
 }
 
 .youtube-preview-title {
