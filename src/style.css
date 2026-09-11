@@ -33,19 +33,27 @@
   --fixed-status-bar-height: 76px;
 
   /* システムUIの固定パレット。投稿色とは独立している。 */
-  --color-bg: #004040;
-  --color-text: #f8f9fa;
-  --color-panel: #064747;
-  --color-panel-strong: #003737;
-  --color-border: #4f7777;
-  --color-border-soft: #2f6262;
-  --color-muted: #b9cccc;
-  --color-subtle: #8fb1b1;
-  --color-button: #0c5b5b;
-  --color-button-hover: #146b6b;
-  --color-button-border: #7aa0a0;
-  --color-badge-text: #eefafa;
-  --color-unread-accent: var(--post-link-unvisited-color);
+  --color-bg: var(--post-background-color);
+  --color-text: var(--post-text-color);
+  /* --color-panel: #064747; */
+  --color-panel: rgb(from var(--color-bg) calc(r + 7) calc(g + 7) calc(b + 7));
+  /* --color-panel-strong: #003737; */
+  --color-panel-strong: rgb(from var(--color-bg) calc(r - 20) calc(g - 20) calc(b - 20));
+  /* --color-border: #4f7777; */
+  --color-border: rgb(from var(--color-panel) calc(r + 64) calc(g + 48) calc(b + 48));
+  /* --color-border-soft: #2f6262; */
+  --color-border-soft: rgb(from var(--color-panel) calc(r + 48) calc(g + 32) calc(b + 32));
+  /* --color-muted: #b9cccc; */
+  --color-muted: var(--post-quote-color);
+  /* --color-subtle: #8fb1b1; */
+  --color-subtle: rgb(from var(--color-muted) calc(r - 64) calc(g - 32) calc(b - 32));
+  /* --color-button: #0c5b5b; */
+  --color-button: rgb(from var(--color-bg) calc(r + 13) calc(g + 13) calc(b + 13));
+  /* --color-button-hover: #146b6b; */
+  --color-button-hover: rgb(from var(--color-button) calc(r + 13) calc(g + 13) calc(b + 13));
+  --color-button-border: var(--post-quote-color);
+  --color-badge-text: var(--unread-badge-text-color);
+  --color-unread-accent: var(--unread-accent-color);
   --color-error: #ff9b9b;
   --color-error-bg: #542f2f;
   --color-error-text: #ffd6d6;
@@ -57,17 +65,17 @@
   --color-reply-notification-text: #fff7c7;
   --color-toast-text: #e6f4ff;
   --color-media-overlay: rgb(0 0 0 / 75%);
-  --color-status-background: rgba(0, 55, 55, .97);
+  --color-status-background: var(--post-background-color);
   --color-status-divider: rgba(255, 255, 255, .12);
   --color-dialog-backdrop: rgba(0, 24, 24, .72);
   --color-focus-ring: rgba(238, 255, 238, .12);
-  --color-danger-border: #b77373;
-  --color-danger-background: #633838;
-  --color-danger-background-hover: #754242;
-  --color-danger-armed-border: #ff7a7a;
-  --color-danger-armed-background: #b51f1f;
   --color-danger-confirm-border: #ff9a9a;
   --color-danger-confirm-background: #d52b2b;
+  --color-danger-armed-border: #ff7a7a;
+  --color-danger-armed-background: #b51f1f;
+  --color-danger-border: var(--color-danger-armed-border);
+  --color-danger-background: var(--color-danger-armed-background);
+  --color-danger-background-hover: var(--color-danger-confirm-background);
   --color-danger-reset-background: var(--color-danger-background);
   --color-danger-reset-border: var(--color-danger-border);
   --color-danger-focus-ring: rgba(255, 122, 122, .18);
@@ -345,7 +353,7 @@ button, input, select, textarea { font: inherit; }
   overflow: hidden;
   border: 1px solid var(--color-button-border);
   border-radius: 8px;
-  background: var(--color-panel);
+  background: var(--color-bg);
   box-shadow: 0 8px 20px var(--color-shadow-subtle);
 }
 
@@ -453,7 +461,7 @@ button:disabled { cursor: default; opacity: .45; }
 .timeline-card {
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: var(--color-panel);
+  background: var(--color-bg);
   box-shadow: none;
 }
 
@@ -978,7 +986,7 @@ button:disabled { cursor: default; opacity: .45; }
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .03em;
-  background: var(--color-panel-strong);
+  background: var(--color-bg);
 }
 
 .unread-boundary::before,
@@ -1362,7 +1370,7 @@ button:disabled { cursor: default; opacity: .45; }
   min-width: 0;
   overflow: auto;
   border-right: 1px solid var(--color-border);
-  background: var(--color-panel-strong);
+  background: var(--color-panel);
 }
 
 .bbs-settings-sidebar-heading {
@@ -1375,7 +1383,7 @@ button:disabled { cursor: default; opacity: .45; }
   gap: 10px;
   padding: 14px;
   border-bottom: 1px solid var(--color-border-soft);
-  background: var(--color-panel-strong);
+  background: var(--color-panel);
 }
 
 .bbs-settings-sidebar-heading button { padding: 7px 10px; }
@@ -1854,7 +1862,7 @@ button:disabled { cursor: default; opacity: .45; }
   padding: 2px;
   border: 1px solid var(--color-border);
   border-radius: 5px;
-  background: var(--color-panel);
+  background: var(--color-bg);
   cursor: pointer;
 }
 
@@ -1948,7 +1956,7 @@ button:disabled { cursor: default; opacity: .45; }
   justify-content: space-between;
   gap: 20px;
   padding: 18px 20px 14px;
-  background: var(--color-panel);
+  background: var(--color-bg);
 }
 
 .settings-main-header h2 { margin: 0; }
@@ -1964,7 +1972,8 @@ button:disabled { cursor: default; opacity: .45; }
   padding: 0 16px;
   border-top: 1px solid var(--color-border-soft);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-panel);
+  /* background: var(--color-panel); */
+  mix-blend-mode: lighten;
 }
 
 .settings-tab {
@@ -2248,7 +2257,7 @@ button:disabled { cursor: default; opacity: .45; }
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: var(--color-panel-strong);
+  background: var(--color-bg);
   box-shadow: 0 18px 60px var(--color-shadow);
 }
 
@@ -2259,7 +2268,7 @@ button:disabled { cursor: default; opacity: .45; }
   gap: 18px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--color-border-soft);
-  background: var(--color-panel);
+  background: var(--color-bg);
 }
 
 .bbs-action-view-header .status-label {
@@ -2353,7 +2362,7 @@ button:disabled { cursor: default; opacity: .45; }
   gap: 14px;
   padding: 18px 20px 22px;
   border-top: 1px solid var(--color-border);
-  background: var(--color-panel);
+  background: var(--color-bg);
 }
 
 .bbs-follow-post-form-heading {
