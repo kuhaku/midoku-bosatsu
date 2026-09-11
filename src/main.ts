@@ -2233,7 +2233,7 @@ function appendFxTwitterPreviewMedia(preview: FxTwitterPreviewPost, card: HTMLEl
     if (visitedUrls.has(imageUrl)) image.classList.add('link-visited');
     const mediaLink = createExternalLink(imageUrl, '');
     mediaLink.target = '_blank';
-    mediaLink.title = 'X投稿の添付画像を開く';
+    mediaLink.title = imageUrl;
     mediaLink.append(image);
     media.append(mediaLink);
   }
@@ -2255,7 +2255,7 @@ function appendFxTwitterPreviewMedia(preview: FxTwitterPreviewPost, card: HTMLEl
     const mediaLink = createExternalLink(videoUrl, '');
     mediaLink.target = '_blank';
     mediaLink.classList.add('fxtwitter-preview-video-link');
-    mediaLink.title = 'X投稿の添付動画を開く';
+    mediaLink.title = videoUrl;
     const label = document.createElement('span');
     label.className = 'fxtwitter-preview-video-label';
     label.textContent = '動画を見る';
