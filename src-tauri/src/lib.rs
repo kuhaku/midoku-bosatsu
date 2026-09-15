@@ -152,6 +152,14 @@ async fn fetch_youtube_video_title(
 }
 
 #[tauri::command]
+async fn fetch_twitter_card_preview(
+    state: State<'_, ReaderState>,
+    url: String,
+) -> Result<Option<fetcher::TwitterCardPreview>, String> {
+    state.fetch_twitter_card_preview(&url).await
+}
+
+#[tauri::command]
 fn save_general_settings(
     app: AppHandle,
     service: State<'_, ReplyNotificationService>,
@@ -497,6 +505,7 @@ pub fn run() {
             get_reader_style,
             fetch_fxtwitter_status,
             fetch_youtube_video_title,
+            fetch_twitter_card_preview,
             save_general_settings,
             get_reply_notification_ui_state,
             get_reply_notification_tracked_roots,

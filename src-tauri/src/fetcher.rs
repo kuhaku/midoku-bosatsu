@@ -1,13 +1,15 @@
 use std::{
     collections::{HashMap, HashSet},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     sync::OnceLock,
     time::Duration,
 };
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use kuchikiki::traits::*;
 
 use reqwest::{
-    header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, REFERER, USER_AGENT},
+    header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE, LOCATION, REFERER, USER_AGENT},
     Client, Url,
 };
 use tauri::async_runtime::Mutex;
@@ -23,6 +25,373 @@ use crate::{
     },
     reply_notification::SubmittedPostFields,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct TwitterCardPreview {
+    pub url: String,
+    pub title: String,
+    pub description: String,
+    pub image_url: String,
+    pub site_name: String,
+}
+
+const TWITTER_CARD_HTML_LIMIT_BYTES: usize = 1024 * 1024;
+const TWITTER_CARD_IMAGE_LIMIT_BYTES: usize = 1024 * 1024;
+const TWITTER_CARD_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+fn is_public_preview_ipv4(address: Ipv4Addr) -> bool {
+    let [a, b, c, _] = address.octets();
+    !(address.is_private()
+        || address.is_loopback()
+        || address.is_link_local()
+        || address.is_multicast()
+        || address.is_broadcast()
+        || address.is_documentation()
+        || address.is_unspecified()
+        || a == 0
+        || (a == 100 && (64..=127).contains(&b))
+        || (a == 192 && b == 0 && c == 0)
+        || (a == 192 && b == 88 && c == 99)
+        || (a == 198 && (b == 18 || b == 19))
+        || a >= 240)
+}
+
+fn is_public_preview_ipv6(address: Ipv6Addr) -> bool {
+    if let Some(ipv4) = address.to_ipv4_mapped() {
+        return is_public_preview_ipv4(ipv4);
+    }
+    let segments = address.segments();
+    (0x2000..=0x3fff).contains(&segments[0])
+        && !(segments[0] == 0x2001 && matches!(segments[1], 0x0002 | 0x0010 | 0x0db8))
+        && segments[0] != 0x2002
+}
+
+fn is_public_preview_ip(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(address) => is_public_preview_ipv4(address),
+        IpAddr::V6(address) => is_public_preview_ipv6(address),
+    }
+}
+
+fn is_excluded_preview_host(host: &str) -> bool {
+    const EXCLUDED: [&str; 5] = [
+        "x.com",
+        "twitter.com",
+        "youtube.com",
+        "youtube-nocookie.com",
+        "youtu.be",
+    ];
+    let normalized = host.trim_end_matches('.').to_ascii_lowercase();
+    normalized == "localhost"
+        || normalized.ends_with(".localhost")
+        || EXCLUDED
+            .iter()
+            .any(|domain| normalized == *domain || normalized.ends_with(&format!(".{domain}")))
+}
+
+fn has_excluded_media_extension(path: &str) -> bool {
+    let Some(extension) = path
+        .rsplit('/')
+        .next()
+        .and_then(|name| name.rsplit_once('.'))
+    else {
+        return false;
+    };
+    matches!(
+        extension.1.to_ascii_lowercase().as_str(),
+        "3g2"
+            | "3gp"
+            | "apng"
+            | "avif"
+            | "avi"
+            | "bmp"
+            | "flv"
+            | "gif"
+            | "heic"
+            | "heif"
+            | "ico"
+            | "jfif"
+            | "jpg"
+            | "jpeg"
+            | "m2ts"
+            | "m4v"
+            | "mkv"
+            | "mov"
+            | "mp4"
+            | "mpeg"
+            | "mpg"
+            | "ogv"
+            | "png"
+            | "svg"
+            | "tif"
+            | "tiff"
+            | "ts"
+            | "webm"
+            | "webp"
+            | "wmv"
+    )
+}
+
+fn twitter_card_page_url(raw_url: &str) -> Result<Url, String> {
+    let mut url = Url::parse(raw_url).map_err(|e| format!("Twitter Card URLが不正です: {e}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("Twitter Card URLはHTTP(S)で指定してください".to_string());
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("認証情報を含むTwitter Card URLは取得できません".to_string());
+    }
+    let Some(host) = url.host_str() else {
+        return Err("Twitter Card URLにホスト名がありません".to_string());
+    };
+    let normalized_host = host.trim_end_matches('.').to_string();
+    if is_excluded_preview_host(&normalized_host) || has_excluded_media_extension(url.path()) {
+        return Err("Twitter Cardプレビューの対象外URLです".to_string());
+    }
+    if normalized_host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .parse::<IpAddr>()
+        .is_ok_and(|address| !is_public_preview_ip(address))
+    {
+        return Err("公開インターネット以外のURLは取得できません".to_string());
+    }
+    if normalized_host != host {
+        url.set_host(Some(&normalized_host))
+            .map_err(|_| "Twitter Card URLのホスト名が不正です".to_string())?;
+    }
+    Ok(url)
+}
+
+fn twitter_card_resource_url(raw_url: &str) -> Result<Url, String> {
+    let mut url = Url::parse(raw_url).map_err(|e| format!("Twitter Card画像URLが不正です: {e}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("Twitter Card画像URLはHTTP(S)で指定してください".to_string());
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("認証情報を含むTwitter Card画像URLは取得できません".to_string());
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Twitter Card画像URLにホスト名がありません".to_string())?;
+    let normalized_host = host.trim_end_matches('.').to_string();
+    if is_excluded_preview_host(&normalized_host) {
+        return Err("Twitter Card画像の取得対象外URLです".to_string());
+    }
+    if normalized_host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .parse::<IpAddr>()
+        .is_ok_and(|address| !is_public_preview_ip(address))
+    {
+        return Err("公開インターネット以外の画像URLは取得できません".to_string());
+    }
+    if normalized_host != host {
+        url.set_host(Some(&normalized_host))
+            .map_err(|_| "Twitter Card画像URLのホスト名が不正です".to_string())?;
+    }
+    Ok(url)
+}
+
+async fn resolve_public_preview_addresses(url: &Url) -> Result<(String, Vec<SocketAddr>), String> {
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Twitter Card URLにホスト名がありません".to_string())?
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string();
+    let port = url
+        .port_or_known_default()
+        .ok_or_else(|| "Twitter Card URLのポートが不正です".to_string())?;
+    let lookup_host = host.clone();
+    let addresses = tauri::async_runtime::spawn_blocking(move || {
+        (lookup_host.as_str(), port)
+            .to_socket_addrs()
+            .map(|addresses| addresses.collect::<Vec<_>>())
+    })
+    .await
+    .map_err(|e| format!("Twitter Card URLの名前解決に失敗しました: {e}"))?
+    .map_err(|e| format!("Twitter Card URLの名前解決に失敗しました: {e}"))?;
+
+    if addresses.is_empty()
+        || addresses
+            .iter()
+            .any(|address| !is_public_preview_ip(address.ip()))
+    {
+        return Err("公開インターネット以外のURLは取得できません".to_string());
+    }
+    Ok((host, addresses))
+}
+
+async fn fetch_protected_preview_response(
+    initial_url: Url,
+    accept: &str,
+    validate_redirect: fn(&str) -> Result<Url, String>,
+) -> Result<(Url, reqwest::Response), String> {
+    const MAX_REDIRECTS: usize = 10;
+    let mut current_url = initial_url;
+
+    for redirect_count in 0..=MAX_REDIRECTS {
+        let (host, addresses) = resolve_public_preview_addresses(&current_url).await?;
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(TWITTER_CARD_REQUEST_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .resolve_to_addrs(&host, &addresses)
+            .build()
+            .map_err(|e| format!("Twitter Card HTTPクライアントの初期化に失敗しました: {e}"))?;
+        let response = client
+            .get(current_url.clone())
+            .header(USER_AGENT, "Midoku Bosatsu Twitter Card Preview")
+            .header(ACCEPT, accept)
+            .send()
+            .await
+            .map_err(|e| format!("Twitter Cardリソースの取得に失敗しました: {e}"))?;
+
+        if !response.status().is_redirection() {
+            return Ok((current_url, response));
+        }
+        if redirect_count == MAX_REDIRECTS {
+            return Err("Twitter Cardリソースのリダイレクト回数が上限を超えました".to_string());
+        }
+        let location = response
+            .headers()
+            .get(LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| "Twitter Cardリソースのリダイレクト先が不正です".to_string())?;
+        let redirect_url = current_url
+            .join(location)
+            .map_err(|e| format!("Twitter Cardリソースのリダイレクト先が不正です: {e}"))?;
+        current_url = validate_redirect(redirect_url.as_str())?;
+    }
+
+    Err("Twitter Cardリソースを取得できませんでした".to_string())
+}
+
+async fn read_limited_response(
+    response: &mut reqwest::Response,
+    limit: usize,
+) -> Result<Option<Vec<u8>>, String> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        return Ok(None);
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("Twitter Cardリソースの読み込みに失敗しました: {e}"))?
+    {
+        if body.len() + chunk.len() > limit {
+            return Ok(None);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(Some(body))
+}
+
+fn twitter_card_content_type_is_html(content_type: &str) -> bool {
+    matches!(
+        content_type.split(';').next().map(str::trim),
+        Some("text/html" | "application/xhtml+xml")
+    )
+}
+
+fn decode_twitter_card_html(body: &[u8], content_type: &str) -> String {
+    let charset = content_type.split(';').skip(1).find_map(|parameter| {
+        let (name, value) = parameter.trim().split_once('=')?;
+        name.eq_ignore_ascii_case("charset")
+            .then(|| value.trim().trim_matches(['"', '\'']))
+    });
+    let encoding = charset
+        .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+        .unwrap_or(encoding_rs::UTF_8);
+    encoding.decode(body).0.into_owned()
+}
+
+fn twitter_card_image_data_url(content_type: &str, body: &[u8]) -> Option<String> {
+    let mime = content_type.split(';').next()?.trim().to_ascii_lowercase();
+    if !matches!(
+        mime.as_str(),
+        "image/avif" | "image/bmp" | "image/gif" | "image/jpeg" | "image/png" | "image/webp"
+    ) {
+        return None;
+    }
+    Some(format!(
+        "data:{mime};base64,{}",
+        BASE64_STANDARD.encode(body)
+    ))
+}
+
+fn extract_twitter_card_preview(html: &str, page_url: &Url) -> Option<TwitterCardPreview> {
+    let document = kuchikiki::parse_html().one(html).document_node;
+    let mut metadata = HashMap::<String, String>::new();
+
+    if let Ok(elements) = document.select("meta") {
+        for element in elements {
+            let attributes = element.attributes.borrow();
+            let key = attributes
+                .get("name")
+                .or_else(|| attributes.get("property"))
+                .map(str::trim)
+                .filter(|key| !key.is_empty())
+                .map(str::to_ascii_lowercase);
+            let content = attributes
+                .get("content")
+                .map(str::trim)
+                .filter(|content| !content.is_empty());
+            if let (Some(key), Some(content)) = (key, content) {
+                metadata.entry(key).or_insert_with(|| content.to_string());
+            }
+        }
+    }
+
+    let html_title = document
+        .select_first("title")
+        .ok()
+        .map(|element| element.text_contents().trim().to_string())
+        .filter(|title| !title.is_empty());
+    let title = metadata
+        .get("twitter:title")
+        .or_else(|| metadata.get("og:title"))
+        .cloned()
+        .or(html_title)
+        .unwrap_or_default();
+    let description = metadata
+        .get("twitter:description")
+        .or_else(|| metadata.get("og:description"))
+        .or_else(|| metadata.get("description"))
+        .cloned()
+        .unwrap_or_default();
+    let image_url = metadata
+        .get("twitter:image")
+        .or_else(|| metadata.get("twitter:image:src"))
+        .or_else(|| metadata.get("og:image"))
+        .and_then(|value| page_url.join(value).ok())
+        .filter(|url| matches!(url.scheme(), "http" | "https"))
+        .map(|url| url.to_string())
+        .unwrap_or_default();
+
+    if title.is_empty() && description.is_empty() && image_url.is_empty() {
+        return None;
+    }
+
+    let site_name = metadata
+        .get("og:site_name")
+        .cloned()
+        .or_else(|| page_url.host_str().map(ToOwned::to_owned))
+        .unwrap_or_default();
+
+    Some(TwitterCardPreview {
+        url: page_url.to_string(),
+        title,
+        description,
+        image_url,
+        site_name,
+    })
+}
 
 fn fxtwitter_status_endpoint(
     status_id: &str,
@@ -184,6 +553,89 @@ impl ReaderState {
             .await
             .map_err(|e| format!("YouTube動画ページの読み込みに失敗しました: {e}"))?;
         Ok(extract_youtube_video_title(&html))
+    }
+
+    pub async fn fetch_twitter_card_preview(
+        &self,
+        raw_url: &str,
+    ) -> Result<Option<TwitterCardPreview>, String> {
+        tokio::time::timeout(
+            TWITTER_CARD_REQUEST_TIMEOUT,
+            self.fetch_twitter_card_preview_inner(raw_url),
+        )
+        .await
+        .map_err(|_| "Twitter Cardプレビューの取得がタイムアウトしました".to_string())?
+    }
+
+    async fn fetch_twitter_card_preview_inner(
+        &self,
+        raw_url: &str,
+    ) -> Result<Option<TwitterCardPreview>, String> {
+        let page_url = twitter_card_page_url(raw_url)?;
+        let (page_url, mut response) = fetch_protected_preview_response(
+            page_url,
+            "text/html,application/xhtml+xml",
+            twitter_card_page_url,
+        )
+        .await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!(
+                "Twitter CardページがHTTPエラーを返しました: {} {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or("")
+            ));
+        }
+
+        let content_type = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if !twitter_card_content_type_is_html(&content_type) {
+            return Ok(None);
+        }
+        let Some(body) =
+            read_limited_response(&mut response, TWITTER_CARD_HTML_LIMIT_BYTES).await?
+        else {
+            return Ok(None);
+        };
+        let html = decode_twitter_card_html(&body, &content_type);
+        let Some(mut preview) = extract_twitter_card_preview(&html, &page_url) else {
+            return Ok(None);
+        };
+
+        if !preview.image_url.is_empty() {
+            preview.image_url = self
+                .fetch_twitter_card_image_data_url(&preview.image_url)
+                .await
+                .unwrap_or_default();
+        }
+        Ok(Some(preview))
+    }
+
+    async fn fetch_twitter_card_image_data_url(&self, raw_url: &str) -> Option<String> {
+        let image_url = twitter_card_resource_url(raw_url).ok()?;
+        let (_, mut response) = fetch_protected_preview_response(
+            image_url,
+            "image/avif,image/bmp,image/gif,image/jpeg,image/png,image/webp",
+            twitter_card_resource_url,
+        )
+        .await
+        .ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        let content_type = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())?
+            .to_string();
+        let body = read_limited_response(&mut response, TWITTER_CARD_IMAGE_LIMIT_BYTES)
+            .await
+            .ok()??;
+        twitter_card_image_data_url(&content_type, &body)
     }
 
     pub async fn clear_reload_forms(&self) {
@@ -911,6 +1363,123 @@ mod tests {
             extract_youtube_video_title(html),
             Some("\"Weird Al\" Yankovic - Eat It (Official 4K Video)".to_string())
         );
+    }
+
+    #[test]
+    fn twitter_card_page_url_accepts_only_http_urls_without_credentials() {
+        assert_eq!(
+            twitter_card_page_url("https://example.com/articles/42")
+                .unwrap()
+                .as_str(),
+            "https://example.com/articles/42"
+        );
+        assert!(twitter_card_page_url("file:///etc/passwd").is_err());
+        assert!(twitter_card_page_url("https://user:password@example.com/").is_err());
+        assert!(twitter_card_page_url("not a URL").is_err());
+    }
+
+    #[test]
+    fn twitter_card_page_url_rejects_excluded_sites_and_media_extensions() {
+        for url in [
+            "https://x.com./example/status/123",
+            "https://mobile.twitter.com/example/status/123",
+            "https://www.youtube.com/watch?v=abcdefghijk",
+            "https://youtu.be/abcdefghijk",
+            "https://example.com/photo.JPG?large=1",
+            "https://example.com/video.mp4#player",
+        ] {
+            assert!(twitter_card_page_url(url).is_err(), "{url}");
+        }
+    }
+
+    #[test]
+    fn twitter_card_page_url_rejects_local_and_non_public_ip_literals() {
+        for url in [
+            "http://localhost/",
+            "http://localhost./",
+            "http://127.0.0.1/",
+            "http://10.0.0.1/",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://192.168.1.1/",
+            "http://[::1]/",
+            "http://[fd00::1]/",
+            "http://[fe80::1]/",
+            "http://[2001:db8::1]/",
+        ] {
+            assert!(twitter_card_page_url(url).is_err(), "{url}");
+        }
+        assert!(twitter_card_page_url("https://8.8.8.8/").is_ok());
+    }
+
+    #[test]
+    fn extracts_twitter_card_metadata_and_resolves_relative_image_url() {
+        let html = r#"
+          <html><head>
+            <meta name="twitter:title" content="Twitter &amp; Card title">
+            <meta name="twitter:description" content="Card description">
+            <meta name="twitter:image" content="/images/card.jpg">
+            <meta name="twitter:site" content="@example_screen_name">
+            <meta property="og:site_name" content="Example News">
+          </head></html>
+        "#;
+        let page_url = Url::parse("https://example.com/articles/42").unwrap();
+
+        assert_eq!(
+            extract_twitter_card_preview(html, &page_url),
+            Some(TwitterCardPreview {
+                url: "https://example.com/articles/42".to_string(),
+                title: "Twitter & Card title".to_string(),
+                description: "Card description".to_string(),
+                image_url: "https://example.com/images/card.jpg".to_string(),
+                site_name: "Example News".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn falls_back_to_open_graph_and_html_title_metadata() {
+        let html = r#"
+          <html><head>
+            <title>HTML title</title>
+            <meta name="twitter:site" content="@screen_name_only">
+            <meta property="og:description" content="Open Graph description">
+            <meta property="og:image" content="https://cdn.example.com/card.png">
+          </head></html>
+        "#;
+        let page_url = Url::parse("https://example.com/").unwrap();
+
+        assert_eq!(
+            extract_twitter_card_preview(html, &page_url),
+            Some(TwitterCardPreview {
+                url: "https://example.com/".to_string(),
+                title: "HTML title".to_string(),
+                description: "Open Graph description".to_string(),
+                image_url: "https://cdn.example.com/card.png".to_string(),
+                site_name: "example.com".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn ignores_pages_without_card_content() {
+        let page_url = Url::parse("https://example.com/").unwrap();
+        assert_eq!(
+            extract_twitter_card_preview("<html><body>Plain</body></html>", &page_url),
+            None
+        );
+    }
+
+    #[test]
+    fn encodes_only_supported_raster_preview_images_as_data_urls() {
+        assert_eq!(
+            twitter_card_image_data_url("image/png", &[0x89, b'P', b'N', b'G']),
+            Some("data:image/png;base64,iVBORw==".to_string())
+        );
+        assert_eq!(
+            twitter_card_image_data_url("image/svg+xml", b"<svg/>"),
+            None
+        );
+        assert_eq!(twitter_card_image_data_url("text/html", b"<html>"), None);
     }
 
     #[test]

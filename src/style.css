@@ -999,6 +999,88 @@ button:disabled { cursor: default; opacity: .45; }
   font-weight: 700;
 }
 
+.twitter-card-preview-loading {
+  display: block;
+  margin: 8px 0 2px 2em;
+  color: var(--color-muted);
+  font-size: .9em;
+}
+
+.twitter-card-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  overflow: hidden;
+  max-width: min(100%, 680px);
+  margin: 10px 0 2px 2em;
+  border: 1px solid var(--post-link-unvisited-color);
+  border-radius: 8px;
+  color: inherit;
+  background: var(--color-panel-strong);
+}
+
+.twitter-card-preview.link-visited { border-color: var(--post-link-visited-color); }
+.twitter-card-preview:hover { border-color: var(--post-link-hover-color); }
+
+.twitter-card-preview-image-link {
+  display: block;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.twitter-card-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  max-height: 180px;
+  object-fit: cover;
+}
+
+.twitter-card-preview-content {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.twitter-card-preview-content:first-child { grid-column: 1 / -1; }
+
+.twitter-card-preview-heading-link {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.twitter-card-preview-site {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: .85em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.twitter-card-preview-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.twitter-card-preview-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+@media (max-width: 560px) {
+  .twitter-card-preview { grid-template-columns: 1fr; }
+  .twitter-card-preview-image { max-height: 220px; }
+}
+
 .post-image:hover {
   border-color: var(--post-link-hover-color);
 }

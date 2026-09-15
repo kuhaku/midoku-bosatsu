@@ -108,6 +108,13 @@ import {
   parseYouTubeVideoUrl,
   truncateYouTubePreviewTitle,
 } from './youtube_preview.ts';
+import {
+  createTwitterCardPreviewLoader,
+  buildTwitterCardPreview,
+  markTwitterCardPreviewVisited,
+  parseTwitterCardPreviewUrl,
+  type TwitterCardPreview,
+} from './twitter_card_preview.ts';
 
 type GlobalConfig = {
   poll_interval_seconds: number;
@@ -116,6 +123,7 @@ type GlobalConfig = {
   show_post_images: boolean;
   show_fxtwitter_previews: boolean;
   show_youtube_previews: boolean;
+  show_twitter_card_previews: boolean;
   fxtwitter_video_thumbnail_size_px: number;
   youtube_video_thumbnail_size_px: number;
   show_image_detail_link: boolean;
@@ -717,6 +725,10 @@ app.innerHTML = `
                       <small>横と高さのうち大きい方を制限します。初期値は400pxです。</small>
                     </label>
                   </div>
+                  <label class="settings-check settings-check-card settings-span-2">
+                    <input id="general-show-twitter-card-previews" type="checkbox"> リンクをプレビュー表示する
+                    <small>リンク先のWebページにTwitter Cardのタグがある場合にプレビュー表示します。初期値はOFFです。</small>
+                  </label>
                 </div>
               </section>
             </div>
@@ -1348,6 +1360,7 @@ const generalConfirmPostCloseOnEscapeInput = mustElement<HTMLInputElement>('#gen
 const generalShowImagesInput = mustElement<HTMLInputElement>('#general-show-images');
 const generalShowFxTwitterPreviewsInput = mustElement<HTMLInputElement>('#general-show-fxtwitter-previews');
 const generalShowYouTubePreviewsInput = mustElement<HTMLInputElement>('#general-show-youtube-previews');
+const generalShowTwitterCardPreviewsInput = mustElement<HTMLInputElement>('#general-show-twitter-card-previews');
 const generalFxTwitterVideoThumbnailSizeInput = mustElement<HTMLInputElement>('#general-fxtwitter-video-thumbnail-size');
 const generalYouTubeVideoThumbnailSizeInput = mustElement<HTMLInputElement>('#general-youtube-video-thumbnail-size');
 const generalImageSizeSettings = mustElement<HTMLDivElement>('#general-image-size-settings');
@@ -1619,13 +1632,14 @@ function isLikelyImageUrl(url: string): boolean {
   }
 }
 
-function createExternalLink(url: string, label: string): HTMLAnchorElement {
+function createExternalLink(url: string, label: string, twitterCardPreviewCandidate = false): HTMLAnchorElement {
   const link = document.createElement('a');
   link.href = url;
   link.dataset.externalUrl = url;
   link.rel = 'noopener noreferrer';
   link.title = url;
   link.textContent = label;
+  if (twitterCardPreviewCandidate) link.dataset.twitterCardPreviewCandidate = 'true';
   if (visitedUrls.has(url)) link.classList.add('link-visited');
   return link;
 }
@@ -1681,7 +1695,7 @@ function appendTextSegmentWithAutoLinks(text: string, target: Node): void {
     if (href) {
       appendAutoImageThumbnail(href, target);
       appendImageDetailLink(href, target);
-      target.appendChild(createExternalLink(href, urlText));
+      target.appendChild(createExternalLink(href, urlText, true));
     } else {
       target.appendChild(document.createTextNode(urlText));
     }
@@ -2450,6 +2464,76 @@ function appendYouTubePreviews(body: HTMLElement): void {
   }
 }
 
+const fetchTwitterCardPreview = createTwitterCardPreviewLoader(
+  (url) => invoke<TwitterCardPreview | null>('fetch_twitter_card_preview', { url }),
+  4,
+  40,
+  100,
+);
+
+const twitterCardPreviewLoaders = new WeakMap<Element, () => void>();
+const observedTwitterCardPreviews = new Set<Element>();
+const twitterCardPreviewObserver = typeof IntersectionObserver === 'undefined'
+  ? null
+  : new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      twitterCardPreviewObserver?.unobserve(entry.target);
+      observedTwitterCardPreviews.delete(entry.target);
+      const load = twitterCardPreviewLoaders.get(entry.target);
+      twitterCardPreviewLoaders.delete(entry.target);
+      load?.();
+    }
+  }, { rootMargin: '300px' });
+
+function observeTwitterCardPreview(element: Element, load: () => void): void {
+  if (!twitterCardPreviewObserver) {
+    load();
+    return;
+  }
+  twitterCardPreviewLoaders.set(element, load);
+  observedTwitterCardPreviews.add(element);
+  twitterCardPreviewObserver.observe(element);
+}
+
+function clearObservedTwitterCardPreviews(root: Node): void {
+  for (const element of observedTwitterCardPreviews) {
+    if (!root.contains(element)) continue;
+    twitterCardPreviewObserver?.unobserve(element);
+    twitterCardPreviewLoaders.delete(element);
+    observedTwitterCardPreviews.delete(element);
+  }
+}
+
+function appendTwitterCardPreviews(body: HTMLElement): void {
+  if (!(config?.global.show_twitter_card_previews ?? false)) return;
+
+  const seenUrls = new Set<string>();
+  for (const link of Array.from(body.querySelectorAll<HTMLAnchorElement>('a[data-twitter-card-preview-candidate="true"]'))) {
+    const url = parseTwitterCardPreviewUrl(link.href);
+    if (!url || seenUrls.has(url)) continue;
+    seenUrls.add(url);
+
+    const loading = document.createElement('span');
+    loading.className = 'twitter-card-preview-loading post-copy-exclusion';
+    loading.textContent = 'リンク先を読み込み中…';
+    link.after(loading);
+    observeTwitterCardPreview(loading, () => {
+      if (!loading.isConnected || !(config?.global.show_twitter_card_previews ?? false)) {
+        loading.remove();
+        return;
+      }
+      void fetchTwitterCardPreview(url).then((preview) => {
+        if (!preview || !loading.isConnected) {
+          loading.remove();
+          return;
+        }
+        loading.replaceWith(buildTwitterCardPreview(preview, visitedUrls.has(preview.url)));
+      });
+    });
+  }
+}
+
 const droppedHtmlTags = new Set([
   'SCRIPT',
   'STYLE',
@@ -2531,6 +2615,7 @@ function appendSanitizedNodes(
           element.setAttribute('aria-label', element.title);
         } else {
           element.dataset.externalUrl = href;
+          element.dataset.twitterCardPreviewCandidate = 'true';
           element.rel = 'noopener noreferrer';
           element.title = href;
           if (visitedUrls.has(href)) element.classList.add('link-visited');
@@ -2704,6 +2789,7 @@ function buildSafePostBody(
   applyHighlightToTextNodes(body, highlightBodyRegex);
   appendFxTwitterPreviews(body);
   appendYouTubePreviews(body);
+  appendTwitterCardPreviews(body);
   return body;
 }
 
@@ -3525,6 +3611,7 @@ function closeBbsActionView(): void {
   bbsActionViewIsPostCompose = false;
   bbsActionView.hidden = true;
   bbsActionView.setAttribute('aria-hidden', 'true');
+  clearObservedTwitterCardPreviews(bbsActionViewContent);
   bbsActionViewContent.replaceChildren();
   restoreCurrentPostSelection();
 }
@@ -3595,6 +3682,7 @@ function renderSavedPosts(): void {
     empty.textContent = '保存済みの投稿はありません。投稿タイムラインの「保存」から追加できます。';
     fragment.append(empty);
   }
+  clearObservedTwitterCardPreviews(savedPostsViewContent);
   savedPostsViewContent.replaceChildren(fragment);
 }
 
@@ -3614,6 +3702,7 @@ function closeSavedPostsView(): void {
   closeTextSearch();
   savedPostsView.hidden = true;
   savedPostsView.setAttribute('aria-hidden', 'true');
+  clearObservedTwitterCardPreviews(savedPostsViewContent);
   savedPostsViewContent.replaceChildren();
 }
 
@@ -3862,6 +3951,7 @@ function renderBbsActionViewResult(
   const visiblePosts = filterHiddenThreadPosts(result.posts, hiddenThreadKeys);
   bbsActionViewPosts = visiblePosts;
   bbsActionViewSite.textContent = result.site_name;
+  clearObservedTwitterCardPreviews(bbsActionViewContent);
   bbsActionViewContent.replaceChildren();
 
   const fragment = document.createDocumentFragment();
@@ -4042,6 +4132,7 @@ function renderNewPostView(
   bbsActionViewPosts = result?.posts ?? [];
   bbsActionViewSite.textContent = siteNames.get(siteId) ?? result?.site_name ?? siteId;
   bbsActionViewTitle.textContent = '新規投稿';
+  clearObservedTwitterCardPreviews(bbsActionViewContent);
   bbsActionViewContent.replaceChildren();
   bbsActionViewContent.dataset.postFormDirty = 'false';
 
@@ -4117,6 +4208,7 @@ async function openBbsActionView(siteId: string, href: string, kind: BbsActionKi
       ? '◆ スレッド（ツリー表示）'
       : '◆ スレッド';
   bbsActionViewPosts = [];
+  clearObservedTwitterCardPreviews(bbsActionViewContent);
   bbsActionViewContent.replaceChildren();
 
   const loading = document.createElement('div');
@@ -4134,6 +4226,7 @@ async function openBbsActionView(siteId: string, href: string, kind: BbsActionKi
     const message = document.createElement('div');
     message.className = 'bbs-action-view-message is-error';
     message.textContent = `リンク先を取得できませんでした: ${String(error)}`;
+    clearObservedTwitterCardPreviews(bbsActionViewContent);
     bbsActionViewContent.replaceChildren(message);
   }
 }
@@ -4836,6 +4929,7 @@ function renderPosts(): void {
     }
   }
 
+  clearObservedTwitterCardPreviews(postsElement);
   postsElement.replaceChildren(fragment);
   restoreCurrentPostSelection();
   updateUnreadControls(posts);
@@ -5195,6 +5289,7 @@ function renderGeneralSettingsForm(): void {
   generalShowImagesInput.checked = generalDraftGlobal.show_post_images;
   generalShowFxTwitterPreviewsInput.checked = generalDraftGlobal.show_fxtwitter_previews ?? false;
   generalShowYouTubePreviewsInput.checked = generalDraftGlobal.show_youtube_previews ?? false;
+  generalShowTwitterCardPreviewsInput.checked = generalDraftGlobal.show_twitter_card_previews ?? false;
   generalFxTwitterVideoThumbnailSizeInput.value = String(generalDraftGlobal.fxtwitter_video_thumbnail_size_px ?? 200);
   generalYouTubeVideoThumbnailSizeInput.value = String(generalDraftGlobal.youtube_video_thumbnail_size_px ?? 400);
   updateImageSizeSettingsVisibility();
@@ -5278,6 +5373,7 @@ function commitGeneralSettingsForm(): void {
   generalDraftGlobal.show_post_images = generalShowImagesInput.checked;
   generalDraftGlobal.show_fxtwitter_previews = generalShowFxTwitterPreviewsInput.checked;
   generalDraftGlobal.show_youtube_previews = generalShowYouTubePreviewsInput.checked;
+  generalDraftGlobal.show_twitter_card_previews = generalShowTwitterCardPreviewsInput.checked;
   const fxtwitterVideoThumbnailSize = Number.parseInt(generalFxTwitterVideoThumbnailSizeInput.value, 10);
   if (Number.isFinite(fxtwitterVideoThumbnailSize)) generalDraftGlobal.fxtwitter_video_thumbnail_size_px = fxtwitterVideoThumbnailSize;
   const youtubeVideoThumbnailSize = Number.parseInt(generalYouTubeVideoThumbnailSizeInput.value, 10);
@@ -6448,6 +6544,7 @@ function handlePostContentClick(event: MouseEvent): void {
   if (!url) return;
 
   markExternalElementVisited(externalTarget, url);
+  markTwitterCardPreviewVisited(externalTarget);
 
   void openUrl(url).catch((error: unknown) => {
     const message = `リンクを開けませんでした: ${String(error)}`;

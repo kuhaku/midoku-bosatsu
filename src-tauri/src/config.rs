@@ -28,6 +28,8 @@ pub struct GlobalConfig {
     pub show_fxtwitter_previews: bool,
     #[serde(default)]
     pub show_youtube_previews: bool,
+    #[serde(default)]
+    pub show_twitter_card_previews: bool,
     #[serde(default = "default_fxtwitter_video_thumbnail_size_px")]
     pub fxtwitter_video_thumbnail_size_px: u16,
     #[serde(default = "default_youtube_video_thumbnail_size_px")]
@@ -1135,6 +1137,14 @@ post_order = "newest_first"
             .expect("bundled global config should parse");
 
         assert!(!config.global.show_youtube_previews);
+    }
+
+    #[test]
+    fn bundled_global_disables_twitter_card_previews_by_default() {
+        let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
+            .expect("bundled global config should parse");
+
+        assert!(!config.global.show_twitter_card_previews);
     }
 
     #[test]
