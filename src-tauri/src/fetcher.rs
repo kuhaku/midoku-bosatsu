@@ -429,6 +429,27 @@ fn youtube_watch_url(video_id: &str) -> Result<Url, String> {
         .map_err(|e| format!("YouTube動画URLの生成に失敗しました: {e}"))
 }
 
+fn youtube_oembed_url(video_id: &str) -> Result<Url, String> {
+    let watch_url = youtube_watch_url(video_id)?;
+    let mut endpoint = Url::parse("https://www.youtube.com/oembed")
+        .map_err(|e| format!("YouTube oEmbed URLの生成に失敗しました: {e}"))?;
+    endpoint
+        .query_pairs_mut()
+        .append_pair("url", watch_url.as_str())
+        .append_pair("format", "json");
+    Ok(endpoint)
+}
+
+fn extract_youtube_oembed_title(body: &[u8]) -> Option<String> {
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()?
+        .get("title")?
+        .as_str()
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 fn extract_youtube_video_title(html: &str) -> Option<String> {
     let document = kuchikiki::parse_html().one(html).document_node;
     let metadata = document.select_first(r#"meta[property="og:title"]"#).ok()?;
@@ -531,10 +552,37 @@ impl ReaderState {
         &self,
         video_id: &str,
     ) -> Result<Option<String>, String> {
-        let url = youtube_watch_url(video_id)?;
+        let oembed_url = youtube_oembed_url(video_id)?;
+        let watch_url = youtube_watch_url(video_id)?;
+        self.fetch_youtube_video_title_from_urls(oembed_url, watch_url)
+            .await
+    }
+
+    async fn fetch_youtube_video_title_from_urls(
+        &self,
+        oembed_url: Url,
+        watch_url: Url,
+    ) -> Result<Option<String>, String> {
+        if let Ok(response) = self
+            .client
+            .get(oembed_url)
+            .header(USER_AGENT, "Midoku Bosatsu YouTube Preview")
+            .header(ACCEPT, "application/json")
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                if let Ok(body) = response.bytes().await {
+                    if let Some(title) = extract_youtube_oembed_title(&body) {
+                        return Ok(Some(title));
+                    }
+                }
+            }
+        }
+
         let response = self
             .client
-            .get(url)
+            .get(watch_url)
             .header(USER_AGENT, "Midoku Bosatsu YouTube Preview")
             .header(ACCEPT, "text/html")
             .send()
@@ -1263,6 +1311,73 @@ fn resolve_form_action(site: &SiteConfig, action: Option<&str>) -> Result<Url, S
 mod tests {
     use super::*;
     use crate::config::{FetchConfig, PostParserConfig, ReloadFormConfig};
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        thread,
+    };
+
+    fn youtube_title_fallback_server(
+        oembed_status: &'static str,
+        oembed_body: &'static str,
+    ) -> (Url, Url, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            for (expected_path, status, content_type, body) in [
+                ("/oembed", oembed_status, "application/json", oembed_body),
+                (
+                    "/watch",
+                    "200 OK",
+                    "text/html; charset=utf-8",
+                    r#"<meta property="og:title" content="ナンパというアングラの恩恵">"#,
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0_u8; 2048];
+                let size = stream.read(&mut request).unwrap();
+                let request = String::from_utf8_lossy(&request[..size]);
+                assert!(request.starts_with(&format!("GET {expected_path} HTTP/1.1")));
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len(),
+                )
+                .unwrap();
+            }
+        });
+
+        (
+            Url::parse(&format!("http://{address}/oembed")).unwrap(),
+            Url::parse(&format!("http://{address}/watch")).unwrap(),
+            handle,
+        )
+    }
+
+    fn youtube_oembed_success_server() -> (Url, Url, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 2048];
+            let size = stream.read(&mut request).unwrap();
+            let request = String::from_utf8_lossy(&request[..size]);
+            assert!(request.starts_with("GET /oembed HTTP/1.1"));
+            let body = r#"{"title":"oEmbed title"}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len(),
+            )
+            .unwrap();
+        });
+
+        (
+            Url::parse(&format!("http://{address}/oembed")).unwrap(),
+            Url::parse(&format!("http://{address}/watch")).unwrap(),
+            handle,
+        )
+    }
 
     fn site(url: &str) -> SiteConfig {
         SiteConfig {
@@ -1363,6 +1478,67 @@ mod tests {
             extract_youtube_video_title(html),
             Some("\"Weird Al\" Yankovic - Eat It (Official 4K Video)".to_string())
         );
+    }
+
+    #[test]
+    fn builds_youtube_oembed_url_for_the_video_id() {
+        assert_eq!(
+            youtube_oembed_url("Ue6karQMOlI").unwrap().as_str(),
+            "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DUe6karQMOlI&format=json",
+        );
+    }
+
+    #[test]
+    fn extracts_non_empty_youtube_title_from_oembed_json() {
+        assert_eq!(
+            extract_youtube_oembed_title(r#"{"title":" ナンパというアングラの恩恵 "}"#.as_bytes()),
+            Some("ナンパというアングラの恩恵".to_string()),
+        );
+        assert_eq!(extract_youtube_oembed_title(br#"{"title":""}"#), None);
+    }
+
+    #[test]
+    fn uses_youtube_oembed_title_without_fetching_the_html() {
+        let (oembed_url, watch_url, server) = youtube_oembed_success_server();
+        let state = ReaderState::new().unwrap();
+
+        let title = tauri::async_runtime::block_on(
+            state.fetch_youtube_video_title_from_urls(oembed_url, watch_url),
+        )
+        .unwrap();
+
+        assert_eq!(title, Some("oEmbed title".to_string()));
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn falls_back_to_youtube_html_when_oembed_title_is_empty() {
+        let (oembed_url, watch_url, server) =
+            youtube_title_fallback_server("200 OK", r#"{"title":""}"#);
+        let state = ReaderState::new().unwrap();
+
+        let title = tauri::async_runtime::block_on(
+            state.fetch_youtube_video_title_from_urls(oembed_url, watch_url),
+        )
+        .unwrap();
+
+        assert_eq!(title, Some("ナンパというアングラの恩恵".to_string()));
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn falls_back_to_youtube_html_when_oembed_returns_an_http_error() {
+        let (oembed_url, watch_url, server) =
+            youtube_title_fallback_server("500 Internal Server Error", "failed");
+        let state = ReaderState::new().unwrap();
+
+        let title = tauri::async_runtime::block_on(
+            state.fetch_youtube_video_title_from_urls(oembed_url, watch_url),
+        )
+        .unwrap();
+
+        assert_eq!(title, Some("ナンパというアングラの恩恵".to_string()));
+        server.join().unwrap();
     }
 
     #[test]
