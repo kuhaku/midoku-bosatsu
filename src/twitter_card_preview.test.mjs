@@ -158,6 +158,15 @@ test('画像のないTwitter Cardはテキストをカード全幅に表示す�
   );
 });
 
+test('Twitter Cardプレビューの下側は投稿本文と近接させる', async () => {
+  const style = await readFile(new URL('./style.css', import.meta.url), 'utf8');
+
+  assert.match(
+    style,
+    /\.twitter-card-preview\s*\{[^}]*margin:\s*10px\s+0\s+0\s+2em;/u,
+  );
+});
+
 test('投稿本文の元リンクだけをTwitter Card候補にして生成UIリンクを除外する', async () => {
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
   const appendTwitterCards = main.match(

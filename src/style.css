@@ -1011,7 +1011,7 @@ button:disabled { cursor: default; opacity: .45; }
   grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
   overflow: hidden;
   max-width: min(100%, 680px);
-  margin: 10px 0 2px 2em;
+  margin: 10px 0 0 2em;
   border: 1px solid var(--post-link-unvisited-color);
   border-radius: 8px;
   color: inherit;
