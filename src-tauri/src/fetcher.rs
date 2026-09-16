@@ -353,12 +353,11 @@ fn extract_twitter_card_preview(html: &str, page_url: &Url) -> Option<TwitterCar
         .ok()
         .map(|element| element.text_contents().trim().to_string())
         .filter(|title| !title.is_empty());
-    let title = metadata
+    let card_title = metadata
         .get("twitter:title")
         .or_else(|| metadata.get("og:title"))
-        .cloned()
-        .or(html_title)
-        .unwrap_or_default();
+        .cloned();
+    let title = card_title.clone().or(html_title).unwrap_or_default();
     let description = metadata
         .get("twitter:description")
         .or_else(|| metadata.get("og:description"))
@@ -374,7 +373,7 @@ fn extract_twitter_card_preview(html: &str, page_url: &Url) -> Option<TwitterCar
         .map(|url| url.to_string())
         .unwrap_or_default();
 
-    if title.is_empty() && description.is_empty() && image_url.is_empty() {
+    if card_title.is_none() && description.is_empty() && image_url.is_empty() {
         return None;
     }
 
@@ -1633,6 +1632,18 @@ mod tests {
                 image_url: "https://cdn.example.com/card.png".to_string(),
                 site_name: "example.com".to_string(),
             })
+        );
+    }
+
+    #[test]
+    fn ignores_pages_with_only_an_html_title() {
+        let page_url = Url::parse("https://example.com/").unwrap();
+        assert_eq!(
+            extract_twitter_card_preview(
+                "<html><head><title>HTML title</title></head><body></body></html>",
+                &page_url,
+            ),
+            None
         );
     }
 
