@@ -46,23 +46,21 @@ export function buildTwitterCardPreview(
 
   const content = documentRef.createElement('span');
   content.className = 'twitter-card-preview-content';
-  if (preview.site_name || preview.title) {
+  if (preview.site_name) {
+    const siteName = documentRef.createElement('span');
+    siteName.className = 'twitter-card-preview-site';
+    siteName.textContent = preview.site_name;
+    content.append(siteName);
+  }
+  if (preview.title) {
     const headingLink = documentRef.createElement('a');
     headingLink.className = 'twitter-card-preview-heading-link';
     configurePreviewLink(headingLink, preview.url);
 
-    if (preview.site_name) {
-      const siteName = documentRef.createElement('span');
-      siteName.className = 'twitter-card-preview-site';
-      siteName.textContent = preview.site_name;
-      headingLink.append(siteName);
-    }
-    if (preview.title) {
-      const title = documentRef.createElement('strong');
-      title.className = 'twitter-card-preview-title';
-      title.textContent = preview.title;
-      headingLink.append(title);
-    }
+    const title = documentRef.createElement('strong');
+    title.className = 'twitter-card-preview-title';
+    title.textContent = preview.title;
+    headingLink.append(title);
     content.append(headingLink);
   }
   if (preview.description) {

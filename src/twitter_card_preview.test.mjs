@@ -126,6 +126,27 @@ test('Twitter Cardのdescriptionはリンクの外にプレーンテキストで
   assert.ok(links.every((link) => !link.contains(description)));
 });
 
+test('Twitter Cardのサイト名はリンクの外にプレーンテキストで表示する', async () => {
+  const { buildTwitterCardPreview } = await import('./twitter_card_preview.ts');
+  const card = buildTwitterCardPreview({
+    url: 'https://example.com/article',
+    title: 'Article title',
+    description: 'Description',
+    image_url: 'data:image/png;base64,AAAA',
+    site_name: 'Example News',
+  }, false, fakeDocument);
+
+  const descendants = collectDescendants(card);
+  const links = descendants.filter((element) => element.tagName === 'A');
+  const siteName = descendants.find((element) => element.className === 'twitter-card-preview-site');
+  const title = descendants.find((element) => element.className === 'twitter-card-preview-title');
+
+  assert.ok(siteName);
+  assert.equal(siteName.textContent, 'Example News');
+  assert.ok(links.every((link) => !link.contains(siteName)));
+  assert.ok(links.some((link) => link.contains(title)));
+});
+
 test('Twitter Cardの画像または見出しを開くと親カードを訪問済みにする', async () => {
   const { buildTwitterCardPreview, markTwitterCardPreviewVisited } = await import('./twitter_card_preview.ts');
 
