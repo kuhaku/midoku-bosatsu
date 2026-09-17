@@ -215,7 +215,7 @@ test('Twitter Card取得は同時実行数を制限し、成功結果だけを�
     maxActive = Math.max(maxActive, active);
     pending.push(() => {
       active -= 1;
-      resolve({ url, title: url, description: '', image_url: '', site_name: '' });
+      resolve({ url, title: url, description: '', image_url: 'https://example.com/image.png', site_name: '' });
     });
   }), 2, 2);
 
@@ -237,6 +237,22 @@ test('Twitter Card取得は同時実行数を制限し、成功結果だけを�
   assert.equal(calls, 4, '最古の成功キャッシュは上限超過時に破棄する');
   pending.shift()();
   await retried;
+});
+
+test('画像のない通常サイトはプレビューを返さず、画像がある場合だけ返す', async () => {
+  const { createTwitterCardPreviewLoader } = await import('./twitter_card_preview.ts');
+  const preview = {
+    url: 'https://example.com/article',
+    title: 'Article',
+    description: 'Description',
+    image_url: '',
+    site_name: 'Example',
+  };
+  const loader = createTwitterCardPreviewLoader(async () => ({ ...preview }));
+
+  assert.equal(await loader(preview.url), null);
+  preview.image_url = 'https://example.com/image.png';
+  assert.deepEqual(await loader(preview.url), preview);
 });
 
 test('取得に失敗したTwitter Cardは再試行できる', async () => {

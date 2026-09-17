@@ -98,6 +98,7 @@ export function createTwitterCardPreviewLoader(
       if (!entry) return;
       active += 1;
       void fetchPreview(entry.url)
+        .then((preview) => preview?.image_url ? preview : null)
         .catch(() => null)
         .then((preview) => {
           if (preview && cacheLimit > 0) {
