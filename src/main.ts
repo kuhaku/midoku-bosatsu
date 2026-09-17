@@ -1720,7 +1720,7 @@ function appendTextWithQuoteStyling(text: string, target: Node, autoLink = false
     if (!part) continue;
 
     const lineTarget = /^>/.test(part) ? document.createElement('span') : target;
-    if (lineTarget instanceof HTMLSpanElement) {
+    if (lineTarget !== target && lineTarget instanceof HTMLSpanElement) {
       lineTarget.className = 'post-quote';
       target.appendChild(lineTarget);
     }
