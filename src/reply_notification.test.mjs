@@ -249,7 +249,13 @@ test('初回取得で検出した返信は既読カーソル初期化後も未�
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
 
   assert.match(main, /const forcedUnreadPostKeys = new Set<string>\(\);/u);
-  assert.match(main, /function isPostUnread\(post: ParsedPost\): boolean \{\s*if \(forcedUnreadPostKeys\.has\(postKey\(post\)\)\) return true;/u);
+  const { stripTypeScriptTypes } = await import('node:module');
+  const functionSource = main.match(/function isPostUnread\([\s\S]*?\n\}/u)[0];
+  const isUnread = new Function('forcedUnreadPostKeys', 'postKey', 'readCursor',
+    `${stripTypeScriptTypes(functionSource)}; return isPostUnread;`,
+  )(new Set(['s:2']), (post) => `${post.site_id}:${post.id}`, null);
+  assert.equal(isUnread({ site_id: 's', id: '2' }), true);
+  assert.equal(isUnread({ site_id: 's', id: '3' }), false);
   assert.match(main, /function markAllCurrentPostsRead\(\): void \{[\s\S]*?forcedUnreadPostKeys\.clear\(\);/u);
 });
 

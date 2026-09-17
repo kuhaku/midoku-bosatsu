@@ -277,6 +277,14 @@ fn extract_post_id_from_href(href: &str, site: &SiteConfig) -> Option<String> {
         if let Some(fragment) = url.fragment() {
             let fragment = fragment.trim();
             if !fragment.is_empty() {
+                // KuzuhaScriptPHP+のスレッド内参照は #a123、投稿IDは123。
+                if site.post_parser.mode == "css_post" {
+                    if let Some(id) = fragment.strip_prefix('a') {
+                        if !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit()) {
+                            return Some(id.to_owned());
+                        }
+                    }
+                }
                 return Some(fragment.to_owned());
             }
         }
@@ -560,6 +568,29 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_ksphp_reference_anchor_ids() {
+        let site = base_site(PostParserConfig {
+            mode: "css_post".into(),
+            ..Default::default()
+        });
+        for (href, expected) in [
+            ("#a3226819", "3226819"),
+            ("#3226819", "3226819"),
+            ("?m=f&s=3226819", "3226819"),
+            ("#another-anchor", "another-anchor"),
+        ] {
+            let document = kuchikiki::parse_html()
+                .one(format!(r#"<pre><a href="{href}">参考：日時</a></pre>"#))
+                .document_node;
+            assert_eq!(
+                extract_parent_reference_id(&document, &site, "3226831").as_deref(),
+                Some(expected),
+                "{href}"
+            );
+        }
+    }
+
+    #[test]
     fn parses_ksphp_css_shape() {
         let site = base_site(PostParserConfig {
             mode: "css_post".into(),
@@ -602,5 +633,10 @@ mod tests {
             .contains("mode=thread"));
         assert_eq!(posts[0].parent_id.as_deref(), Some("2283000"));
         assert_eq!(posts[0].thread_id.as_deref(), Some("2283000"));
+
+        let thread_html = html.replace("?mode=follow&amp;search=2283000", "#a2283000");
+        let thread_posts = parse_posts(&thread_html, &site).unwrap();
+        assert_eq!(thread_posts[0].parent_id.as_deref(), Some("2283000"));
+        assert_eq!(thread_posts[0].thread_id.as_deref(), Some("2283000"));
     }
 }

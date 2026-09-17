@@ -313,6 +313,7 @@ type GeneralSettingsResult = {
 
 
 type ParsedPost = {
+  timeline_read?: boolean;
   id: string;
   site_id: string;
   title: string;
@@ -1916,9 +1917,12 @@ function visibleNewestFirstPosts(): ParsedPost[] {
   return filterHiddenThreadPosts(newestFirstPosts(), hiddenThreadKeys).filter((post) => !isNgPost(post));
 }
 
-function mergePosts(posts: ParsedPost[]): void {
+function mergePosts(posts: ParsedPost[], markRead = false): void {
   for (const post of posts) {
-    postsByKey.set(postKey(post), post);
+    const key = postKey(post);
+    const timelineRead = markRead || postsByKey.get(key)?.timeline_read === true || post.timeline_read === true;
+    postsByKey.set(key, timelineRead ? { ...post, timeline_read: true } : post);
+    if (timelineRead) forcedUnreadPostKeys.delete(key);
   }
 
   // 表示順に関係なく「最新 max_posts 件」を保持し、古いものから捨てる。
@@ -2090,9 +2094,10 @@ function cursorFromPost(post: ParsedPost): ReadCursor | null {
 
 /**
  * 既読カーソルよりタイムライン上で新しい投稿を未読とする。
- * 全サイト共通のカーソルなので、新しい順では未読が上側に連続して並ぶ。
+ * スレッド・ツリー取得で個別に既読化した投稿は、カーソルより新しくても既読とする。
  */
 function isPostUnread(post: ParsedPost): boolean {
+  if (post.timeline_read === true) return false;
   if (forcedUnreadPostKeys.has(postKey(post))) return true;
   if (!readCursor) return false;
 
@@ -4220,6 +4225,11 @@ async function openBbsActionView(siteId: string, href: string, kind: BbsActionKi
   try {
     const result = await invoke<BbsActionViewResult>('fetch_bbs_action_view', { siteId, href });
     if (requestSerial !== bbsActionViewRequestSerial || bbsActionView.hidden) return;
+    if (kind === 'thread' || kind === 'tree') {
+      result.posts = result.posts.map((post) => ({ ...post, timeline_read: true }));
+      mergePosts(result.posts, true);
+      renderPosts();
+    }
     renderBbsActionViewResult(result, kind, false);
   } catch (error) {
     if (requestSerial !== bbsActionViewRequestSerial || bbsActionView.hidden) return;
@@ -4435,6 +4445,10 @@ function buildTreeDisplayGroups(posts: ParsedPost[]): TreeDisplayGroup[] {
       const explicitParentId = post.parent_id?.trim();
       if (explicitParentId && explicitParentId !== post.id) {
         parent = byId.get(explicitParentId);
+        // 修正前に保存したKuzuhaScriptPHP+の参照アンカーIDも解決する。
+        if (!parent && /^a\d+$/.test(explicitParentId)) {
+          parent = byId.get(explicitParentId.slice(1));
+        }
       }
 
       if (!parent) {
@@ -6426,6 +6440,8 @@ async function resetReaderStyleToBundled(): Promise<void> {
 
 function resetUnreadState(): void {
   readCursor = null;
+  for (const post of postsByKey.values()) delete post.timeline_read;
+  persistPostLog();
   try { localStorage.removeItem(READ_CURSOR_STORAGE_KEY); } catch { /* in-memory state was reset */ }
   renderPosts();
 }
