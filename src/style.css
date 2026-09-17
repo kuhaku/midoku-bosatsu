@@ -774,7 +774,7 @@ button:disabled { cursor: default; opacity: .45; }
   font: inherit;
   font-family: var(--post-font-family);
   font-size: var(--post-font-size);
-  line-height: 1.4;
+  line-height: 1.3;
   color: var(--post-text-color);
 }
 
