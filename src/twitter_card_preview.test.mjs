@@ -38,7 +38,7 @@ const fakeDocument = {
   },
 };
 
-test('通常のHTTP(S)ページだけをTwitter Cardプレビュー対象にする', async () => {
+test('通常のHTTPSページだけをTwitter Cardプレビュー対象にする', async () => {
   let previewModule;
   try {
     previewModule = await import('./twitter_card_preview.ts');
@@ -51,7 +51,8 @@ test('通常のHTTP(S)ページだけをTwitter Cardプレビュー対象にす�
     parseTwitterCardPreviewUrl('https://example.com/articles/42?from=bbs'),
     'https://example.com/articles/42?from=bbs',
   );
-  assert.equal(parseTwitterCardPreviewUrl('http://example.com/'), 'http://example.com/');
+  assert.equal(parseTwitterCardPreviewUrl('http://example.com/'), null);
+  assert.equal(parseTwitterCardPreviewUrl('HTTP://example.com/articles/42?from=bbs'), null);
 });
 
 test('X、YouTube、画像・動画直リンクはTwitter Cardプレビュー対象にしない', async () => {

@@ -158,7 +158,7 @@ export function parseTwitterCardPreviewUrl(rawUrl: string): string | null {
     return null;
   }
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  if (url.protocol !== 'https:') return null;
   const host = url.hostname.toLowerCase();
   if (excludedHosts.some((domain) => isHostOrSubdomain(host, domain))) return null;
   if (mediaPathPattern.test(url.pathname)) return null;
