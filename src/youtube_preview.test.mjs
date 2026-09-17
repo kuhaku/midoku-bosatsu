@@ -40,6 +40,15 @@ test('YouTubeプレビューのタイトルは25文字を超える場合に省�
   assert.equal(truncateYouTubePreviewTitle('😀'.repeat(26)), `${'😀'.repeat(25)}…`);
 });
 
+test('YouTubeプレビューのタイトルは半角ASCIIを0.5文字として数える', () => {
+  assert.equal(truncateYouTubePreviewTitle('a'.repeat(50)), 'a'.repeat(50));
+  assert.equal(truncateYouTubePreviewTitle(`${'あ'.repeat(24)}!?`), `${'あ'.repeat(24)}!?`);
+  assert.equal(
+    truncateYouTubePreviewTitle(`${'あ'.repeat(24)}!?い`),
+    `${'あ'.repeat(24)}!?…`,
+  );
+});
+
 test('YouTubeプレビューのタイトルはバックエンド経由で取得する', async () => {
   const { readFile } = await import('node:fs/promises');
   const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');

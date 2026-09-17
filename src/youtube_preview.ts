@@ -13,6 +13,7 @@ const YOUTUBE_SHORT_HOST = 'youtu.be';
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 const YOUTUBE_PREVIEW_TITLE_LIMIT = 25;
 const graphemeSegmenter = new Intl.Segmenter('ja', { granularity: 'grapheme' });
+const halfWidthAsciiPattern = /^[\x00-\x7F]$/u;
 
 export function buildYouTubeThumbnailUrl(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
@@ -20,8 +21,17 @@ export function buildYouTubeThumbnailUrl(videoId: string): string {
 
 export function truncateYouTubePreviewTitle(title: string): string {
   const graphemes = Array.from(graphemeSegmenter.segment(title), (segment) => segment.segment);
-  if (graphemes.length <= YOUTUBE_PREVIEW_TITLE_LIMIT) return title;
-  return `${graphemes.slice(0, YOUTUBE_PREVIEW_TITLE_LIMIT).join('')}…`;
+  let length = 0;
+  const visibleGraphemes: string[] = [];
+  for (const grapheme of graphemes) {
+    const nextLength = length + (halfWidthAsciiPattern.test(grapheme) ? 0.5 : 1);
+    if (nextLength > YOUTUBE_PREVIEW_TITLE_LIMIT) {
+      return `${visibleGraphemes.join('')}…`;
+    }
+    visibleGraphemes.push(grapheme);
+    length = nextLength;
+  }
+  return title;
 }
 
 export function parseYouTubeVideoUrl(rawUrl: string): YouTubeVideoReference | null {
