@@ -621,11 +621,11 @@ button:disabled { cursor: default; opacity: .45; }
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  min-height: 1.5em;
+  min-height: 1.3em;
   color: var(--post-text-color);
   font-family: var(--post-font-family);
   font-size: var(--post-font-size);
-  line-height: 1.5;
+  line-height: 1.3;
   white-space: pre;
 }
 
