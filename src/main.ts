@@ -727,8 +727,8 @@ app.innerHTML = `
                     </label>
                   </div>
                   <label class="settings-check settings-check-card settings-span-2">
-                    <input id="general-show-twitter-card-previews" type="checkbox"> リンクをプレビュー表示する
-                    <small>リンク先のWebページにTwitter Cardのタグがある場合にプレビュー表示します。初期値はOFFです。</small>
+                    <input id="general-show-twitter-card-previews" type="checkbox"> 他のサイトのリンクをプレビュー表示する
+                    <small>可能な限りリンク先のWebページをプレビュー表示します (HTTPSのみ。サムネが巨大な場合は表示しない)。初期値はOFFです。</small>
                   </label>
                 </div>
               </section>
