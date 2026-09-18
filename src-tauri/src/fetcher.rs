@@ -38,6 +38,21 @@ pub struct TwitterCardPreview {
 const TWITTER_CARD_HTML_LIMIT_BYTES: usize = 1024 * 1024;
 const TWITTER_CARD_IMAGE_LIMIT_BYTES: usize = 1024 * 1024;
 const TWITTER_CARD_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const AMAZON_PREVIEW_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+fn is_amazon_japan_host(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    host == "amazon.co.jp" || host.ends_with(".amazon.co.jp")
+}
+
+fn preview_user_agent(url: &Url) -> &'static str {
+    if url.host_str().is_some_and(is_amazon_japan_host) {
+        AMAZON_PREVIEW_USER_AGENT
+    } else {
+        "Midoku Bosatsu Twitter Card Preview"
+    }
+}
 
 fn is_public_preview_ipv4(address: Ipv4Addr) -> bool {
     let [a, b, c, _] = address.octets();
@@ -162,6 +177,65 @@ fn twitter_card_page_url(raw_url: &str) -> Result<Url, String> {
     Ok(url)
 }
 
+fn amazon_product_asin(page_url: &Url) -> Option<String> {
+    if !page_url.host_str().is_some_and(is_amazon_japan_host) {
+        return None;
+    }
+    let segments = page_url.path_segments()?.collect::<Vec<_>>();
+    let asin = segments
+        .windows(4)
+        .find_map(|parts| (parts[..3] == ["gp", "aw", "d"]).then_some(parts[3]))
+        .or_else(|| {
+            segments.windows(2).find_map(|pair| {
+                pair[0]
+                    .eq_ignore_ascii_case("dp")
+                    .then_some(pair[1])
+                    .or_else(|| {
+                        (pair[0].eq_ignore_ascii_case("product")
+                            && segments
+                                .windows(3)
+                                .any(|triple| triple == ["gp", "product", pair[1]]))
+                        .then_some(pair[1])
+                    })
+            })
+        })?;
+    (asin.len() == 10 && asin.bytes().all(|byte| byte.is_ascii_alphanumeric()))
+        .then(|| asin.to_ascii_uppercase())
+}
+
+fn twitter_card_fetch_url(page_url: &Url) -> Url {
+    let Some(asin) = amazon_product_asin(page_url) else {
+        return page_url.clone();
+    };
+    let mut fetch_url = page_url.clone();
+    fetch_url.set_path(&format!("/gp/aw/d/{asin}"));
+    fetch_url.set_query(None);
+    fetch_url.set_fragment(None);
+    fetch_url
+}
+
+fn twitter_card_redirect_url(current_url: &Url, raw_url: &str) -> Result<Url, String> {
+    let redirect_url = twitter_card_page_url(raw_url)?;
+    let fetch_url = twitter_card_fetch_url(&redirect_url);
+    Ok(if fetch_url == *current_url {
+        redirect_url
+    } else {
+        fetch_url
+    })
+}
+
+fn twitter_card_resource_redirect_url(_current_url: &Url, raw_url: &str) -> Result<Url, String> {
+    twitter_card_resource_url(raw_url)
+}
+
+fn twitter_card_display_url(requested_url: &Url, fetched_url: &Url) -> Url {
+    if amazon_product_asin(requested_url).is_some() || amazon_product_asin(fetched_url).is_some() {
+        requested_url.clone()
+    } else {
+        fetched_url.clone()
+    }
+}
+
 fn twitter_card_resource_url(raw_url: &str) -> Result<Url, String> {
     let mut url = Url::parse(raw_url).map_err(|e| format!("Twitter Card画像URLが不正です: {e}"))?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -225,7 +299,7 @@ async fn resolve_public_preview_addresses(url: &Url) -> Result<(String, Vec<Sock
 async fn fetch_protected_preview_response(
     initial_url: Url,
     accept: &str,
-    validate_redirect: fn(&str) -> Result<Url, String>,
+    validate_redirect: fn(&Url, &str) -> Result<Url, String>,
 ) -> Result<(Url, reqwest::Response), String> {
     const MAX_REDIRECTS: usize = 10;
     let mut current_url = initial_url;
@@ -240,10 +314,11 @@ async fn fetch_protected_preview_response(
             .resolve_to_addrs(&host, &addresses)
             .build()
             .map_err(|e| format!("Twitter Card HTTPクライアントの初期化に失敗しました: {e}"))?;
-        let response = client
+        let request = client
             .get(current_url.clone())
-            .header(USER_AGENT, "Midoku Bosatsu Twitter Card Preview")
-            .header(ACCEPT, accept)
+            .header(USER_AGENT, preview_user_agent(&current_url))
+            .header(ACCEPT, accept);
+        let response = request
             .send()
             .await
             .map_err(|e| format!("Twitter Cardリソースの取得に失敗しました: {e}"))?;
@@ -262,7 +337,7 @@ async fn fetch_protected_preview_response(
         let redirect_url = current_url
             .join(location)
             .map_err(|e| format!("Twitter Cardリソースのリダイレクト先が不正です: {e}"))?;
-        current_url = validate_redirect(redirect_url.as_str())?;
+        current_url = validate_redirect(&current_url, redirect_url.as_str())?;
     }
 
     Err("Twitter Cardリソースを取得できませんでした".to_string())
@@ -271,10 +346,12 @@ async fn fetch_protected_preview_response(
 async fn read_limited_response(
     response: &mut reqwest::Response,
     limit: usize,
+    keep_prefix: bool,
 ) -> Result<Option<Vec<u8>>, String> {
     if response
         .content_length()
         .is_some_and(|length| length > limit as u64)
+        && !keep_prefix
     {
         return Ok(None);
     }
@@ -285,7 +362,11 @@ async fn read_limited_response(
         .map_err(|e| format!("Twitter Cardリソースの読み込みに失敗しました: {e}"))?
     {
         if body.len() + chunk.len() > limit {
-            return Ok(None);
+            if !keep_prefix {
+                return Ok(None);
+            }
+            body.extend_from_slice(&chunk[..limit - body.len()]);
+            return Ok(Some(body));
         }
         body.extend_from_slice(&chunk);
     }
@@ -364,11 +445,37 @@ fn extract_twitter_card_preview(html: &str, page_url: &Url) -> Option<TwitterCar
         .or_else(|| metadata.get("description"))
         .cloned()
         .unwrap_or_default();
-    let image_url = metadata
+    let metadata_image_url = metadata
         .get("twitter:image")
         .or_else(|| metadata.get("twitter:image:src"))
         .or_else(|| metadata.get("og:image"))
-        .and_then(|value| page_url.join(value).ok())
+        .cloned();
+    let amazon_image_url = page_url
+        .host_str()
+        .is_some_and(is_amazon_japan_host)
+        .then(|| {
+            document
+                .select_first("#landingImage")
+                .ok()
+                .and_then(|element| {
+                    let attributes = element.attributes.borrow();
+                    attributes
+                        .get("data-old-hires")
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .or_else(|| {
+                            attributes
+                                .get("src")
+                                .map(str::trim)
+                                .filter(|value| !value.is_empty())
+                        })
+                        .map(str::to_string)
+                })
+        })
+        .flatten();
+    let image_url = metadata_image_url
+        .or(amazon_image_url)
+        .and_then(|value| page_url.join(&value).ok())
         .filter(|url| matches!(url.scheme(), "http" | "https"))
         .map(|url| url.to_string())
         .unwrap_or_default();
@@ -618,11 +725,12 @@ impl ReaderState {
         &self,
         raw_url: &str,
     ) -> Result<Option<TwitterCardPreview>, String> {
-        let page_url = twitter_card_page_url(raw_url)?;
+        let requested_url = twitter_card_page_url(raw_url)?;
+        let fetch_url = twitter_card_fetch_url(&requested_url);
         let (page_url, mut response) = fetch_protected_preview_response(
-            page_url,
+            fetch_url,
             "text/html,application/xhtml+xml",
-            twitter_card_page_url,
+            twitter_card_redirect_url,
         )
         .await?;
         let status = response.status();
@@ -643,8 +751,13 @@ impl ReaderState {
         if !twitter_card_content_type_is_html(&content_type) {
             return Ok(None);
         }
-        let Some(body) =
-            read_limited_response(&mut response, TWITTER_CARD_HTML_LIMIT_BYTES).await?
+        let keep_html_prefix = page_url.host_str().is_some_and(is_amazon_japan_host);
+        let Some(body) = read_limited_response(
+            &mut response,
+            TWITTER_CARD_HTML_LIMIT_BYTES,
+            keep_html_prefix,
+        )
+        .await?
         else {
             return Ok(None);
         };
@@ -652,6 +765,7 @@ impl ReaderState {
         let Some(mut preview) = extract_twitter_card_preview(&html, &page_url) else {
             return Ok(None);
         };
+        preview.url = twitter_card_display_url(&requested_url, &page_url).to_string();
 
         if !preview.image_url.is_empty() {
             preview.image_url = self
@@ -667,7 +781,7 @@ impl ReaderState {
         let (_, mut response) = fetch_protected_preview_response(
             image_url,
             "image/avif,image/bmp,image/gif,image/jpeg,image/png,image/webp",
-            twitter_card_resource_url,
+            twitter_card_resource_redirect_url,
         )
         .await
         .ok()?;
@@ -679,7 +793,7 @@ impl ReaderState {
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())?
             .to_string();
-        let body = read_limited_response(&mut response, TWITTER_CARD_IMAGE_LIMIT_BYTES)
+        let body = read_limited_response(&mut response, TWITTER_CARD_IMAGE_LIMIT_BYTES, false)
             .await
             .ok()??;
         twitter_card_image_data_url(&content_type, &body)
@@ -1554,6 +1668,132 @@ mod tests {
     }
 
     #[test]
+    fn uses_a_browser_user_agent_only_for_amazon_japan_pages() {
+        let amazon_url = Url::parse("https://www.amazon.co.jp/gp/product/B0GZDK6JYB?th=1").unwrap();
+        let regular_url = Url::parse("https://example.com/articles/42").unwrap();
+
+        assert!(preview_user_agent(&amazon_url).starts_with("Mozilla/5.0 "));
+        assert_eq!(
+            preview_user_agent(&regular_url),
+            "Midoku Bosatsu Twitter Card Preview"
+        );
+    }
+
+    #[test]
+    fn fetches_amazon_japan_product_pages_through_the_lightweight_path() {
+        for raw_url in [
+            "https://www.amazon.co.jp/gp/product/B0GZDK6JYB",
+            "https://www.amazon.co.jp/dp/B0GZDK6JYB?th=1",
+            "https://www.amazon.co.jp/Motorola-example/dp/B0GZDK6JYB/ref=example",
+        ] {
+            let page_url = Url::parse(raw_url).unwrap();
+            assert_eq!(
+                twitter_card_fetch_url(&page_url).as_str(),
+                "https://www.amazon.co.jp/gp/aw/d/B0GZDK6JYB",
+                "{raw_url}",
+            );
+        }
+
+        let regular_url = Url::parse("https://example.com/dp/B0GZDK6JYB").unwrap();
+        assert_eq!(twitter_card_fetch_url(&regular_url), regular_url);
+    }
+
+    #[test]
+    fn does_not_rewrite_invalid_or_non_product_amazon_paths() {
+        for raw_url in [
+            "https://www.amazon.co.jp/gp/product/B0GZDK6JY",
+            "https://www.amazon.co.jp/gp/product/B0GZDK6JYB1",
+            "https://www.amazon.co.jp/gp/product/B0GZDK6J-B",
+            "https://www.amazon.co.jp/product/B0GZDK6JYB",
+            "https://www.amazon.co.jp/gp/help/B0GZDK6JYB",
+            "https://example.com/dp/B0GZDK6JYB",
+        ] {
+            let page_url = Url::parse(raw_url).unwrap();
+            assert_eq!(twitter_card_fetch_url(&page_url), page_url, "{raw_url}");
+        }
+    }
+
+    #[test]
+    fn rewrites_an_amazon_product_url_discovered_after_a_redirect() {
+        assert_eq!(
+            twitter_card_redirect_url(
+                &Url::parse("https://amzlinks.in/B0bcAgkLZ").unwrap(),
+                "https://www.amazon.co.jp/Example/dp/B093SVDXZZ?tag=yukinoi-22",
+            )
+            .unwrap()
+            .as_str(),
+            "https://www.amazon.co.jp/gp/aw/d/B093SVDXZZ",
+        );
+    }
+
+    #[test]
+    fn does_not_normalize_an_amazon_redirect_back_to_the_current_url() {
+        let current_url = Url::parse("https://www.amazon.co.jp/gp/aw/d/B093SVDXZZ").unwrap();
+
+        assert_eq!(
+            twitter_card_redirect_url(
+                &current_url,
+                "https://www.amazon.co.jp/gp/aw/d/B093SVDXZZ?ref_=example",
+            )
+            .unwrap()
+            .as_str(),
+            "https://www.amazon.co.jp/gp/aw/d/B093SVDXZZ?ref_=example",
+        );
+    }
+
+    #[test]
+    fn keeps_the_original_amazon_url_as_the_preview_destination() {
+        let requested_url = Url::parse("https://www.amazon.co.jp/gp/product/B0GZDK6JYB").unwrap();
+        let fetched_url = Url::parse("https://www.amazon.co.jp/gp/aw/d/B0GZDK6JYB").unwrap();
+        assert_eq!(
+            twitter_card_display_url(&requested_url, &fetched_url),
+            requested_url,
+        );
+
+        let regular_url = Url::parse("https://example.com/article").unwrap();
+        let redirected_url = Url::parse("https://www.example.com/article").unwrap();
+        assert_eq!(
+            twitter_card_display_url(&regular_url, &redirected_url),
+            redirected_url,
+        );
+
+        let short_url = Url::parse("https://link.amazon/B0bcAgkLZ").unwrap();
+        assert_eq!(
+            twitter_card_display_url(&short_url, &fetched_url),
+            short_url,
+        );
+    }
+
+    #[test]
+    fn keeps_a_bounded_prefix_of_large_html_responses_when_requested() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 2048];
+            let request_size = stream.read(&mut request).unwrap();
+            assert!(request_size > 0);
+            let body = "0123456789abcdefghijklmnopqrstuv";
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len(),
+            )
+            .unwrap();
+        });
+
+        let body = tauri::async_runtime::block_on(async {
+            let mut response = reqwest::get(format!("http://{address}/")).await.unwrap();
+            read_limited_response(&mut response, 16, true)
+                .await
+                .unwrap()
+        });
+
+        assert_eq!(body, Some(b"0123456789abcdef".to_vec()));
+        server.join().unwrap();
+    }
+
+    #[test]
     fn twitter_card_page_url_rejects_excluded_sites_and_media_extensions() {
         for url in [
             "https://x.com./example/status/123",
@@ -1632,6 +1872,59 @@ mod tests {
                 image_url: "https://cdn.example.com/card.png".to_string(),
                 site_name: "example.com".to_string(),
             })
+        );
+    }
+
+    #[test]
+    fn extracts_amazon_japan_product_metadata_and_landing_image() {
+        let html = r#"
+          <html><head>
+            <title>Amazon | Motorola edge 60 | スマートフォン本体 通販</title>
+            <meta name="description" content="Motorola edge 60がお買い得。">
+          </head><body>
+            <img
+              id="landingImage"
+              src="https://m.media-amazon.com/images/I/example._AC_SY300_.jpg"
+              data-old-hires="https://m.media-amazon.com/images/I/example._AC_SL1500_.jpg"
+            >
+          </body></html>
+        "#;
+        let page_url = Url::parse("https://www.amazon.co.jp/gp/product/B0GZDK6JYB?th=1").unwrap();
+
+        assert_eq!(
+            extract_twitter_card_preview(html, &page_url),
+            Some(TwitterCardPreview {
+                url: "https://www.amazon.co.jp/gp/product/B0GZDK6JYB?th=1".to_string(),
+                title: "Amazon | Motorola edge 60 | スマートフォン本体 通販".to_string(),
+                description: "Motorola edge 60がお買い得。".to_string(),
+                image_url: "https://m.media-amazon.com/images/I/example._AC_SL1500_.jpg"
+                    .to_string(),
+                site_name: "www.amazon.co.jp".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn falls_back_to_amazon_landing_image_src_when_high_resolution_url_is_empty() {
+        let html = r#"
+          <html><head>
+            <title>Amazon | Product</title>
+            <meta name="description" content="Product description">
+          </head><body>
+            <img
+              id="landingImage"
+              src="https://m.media-amazon.com/images/I/example._AC_SY300_.jpg"
+              data-old-hires=""
+            >
+          </body></html>
+        "#;
+        let page_url = Url::parse("https://www.amazon.co.jp/dp/B0GZDK6JYB").unwrap();
+
+        assert_eq!(
+            extract_twitter_card_preview(html, &page_url)
+                .unwrap()
+                .image_url,
+            "https://m.media-amazon.com/images/I/example._AC_SY300_.jpg"
         );
     }
 
