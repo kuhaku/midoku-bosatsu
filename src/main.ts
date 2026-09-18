@@ -1133,6 +1133,7 @@ app.innerHTML = `
             <div class="version-settings-content">
               <h2>未読菩薩</h2>
               <p id="app-version">未読菩薩</p>
+              <p><a href="https://github.com/kuhaku/midoku-bosatsu" target="_blank">https://github.com/kuhaku/midoku-bosatsu</a></p>
               <button id="check-app-update" type="button">アップデートを確認</button>
               <div id="available-app-update" hidden>
                 <p id="available-app-update-version"></p>
