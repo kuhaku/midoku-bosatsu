@@ -380,14 +380,48 @@ fn twitter_card_content_type_is_html(content_type: &str) -> bool {
     )
 }
 
-fn decode_twitter_card_html(body: &[u8], content_type: &str) -> String {
-    let charset = content_type.split(';').skip(1).find_map(|parameter| {
+fn encoding_from_charset_parameter(value: &str) -> Option<&'static encoding_rs::Encoding> {
+    value.split(';').find_map(|parameter| {
         let (name, value) = parameter.trim().split_once('=')?;
         name.eq_ignore_ascii_case("charset")
             .then(|| value.trim().trim_matches(['"', '\'']))
-    });
-    let encoding = charset
-        .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+            .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+    })
+}
+
+fn encoding_from_twitter_card_meta(body: &[u8]) -> Option<&'static encoding_rs::Encoding> {
+    const META_SCAN_LIMIT_BYTES: usize = 1024;
+    let prefix = String::from_utf8_lossy(&body[..body.len().min(META_SCAN_LIMIT_BYTES)]);
+    let document = kuchikiki::parse_html().one(prefix.as_ref()).document_node;
+    let metadata = document.select("meta").ok()?;
+
+    for element in metadata {
+        let attributes = element.attributes.borrow();
+        if let Some(encoding) = attributes
+            .get("charset")
+            .and_then(|label| encoding_rs::Encoding::for_label(label.trim().as_bytes()))
+        {
+            return Some(encoding);
+        }
+        if attributes
+            .get("http-equiv")
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case("content-type"))
+        {
+            if let Some(encoding) = attributes
+                .get("content")
+                .and_then(encoding_from_charset_parameter)
+            {
+                return Some(encoding);
+            }
+        }
+    }
+
+    None
+}
+
+fn decode_twitter_card_html(body: &[u8], content_type: &str) -> String {
+    let encoding = encoding_from_charset_parameter(content_type)
+        .or_else(|| encoding_from_twitter_card_meta(body))
         .unwrap_or(encoding_rs::UTF_8);
     encoding.decode(body).0.into_owned()
 }
@@ -1824,6 +1858,48 @@ mod tests {
             assert!(twitter_card_page_url(url).is_err(), "{url}");
         }
         assert!(twitter_card_page_url("https://8.8.8.8/").is_ok());
+    }
+
+    #[test]
+    fn decodes_twitter_card_html_using_a_legacy_meta_content_type_charset() {
+        let source = r#"<html><head>
+          <meta http-equiv="content-type" content="text/html;charset=shift_jis">
+          <meta property="og:title" content="スマートフォン新製品">
+          <meta property="og:description" content="製品情報">
+        </head></html>"#;
+        let (body, _, had_errors) = encoding_rs::SHIFT_JIS.encode(source);
+        assert!(!had_errors);
+
+        let decoded = decode_twitter_card_html(&body, "text/html");
+        let preview = extract_twitter_card_preview(
+            &decoded,
+            &Url::parse("https://www.itmedia.co.jp/mobile/articles/example.html").unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(preview.title, "スマートフォン新製品");
+        assert_eq!(preview.description, "製品情報");
+    }
+
+    #[test]
+    fn decodes_twitter_card_html_using_a_meta_charset() {
+        let source = r#"<html><head>
+          <meta charset="shift_jis">
+          <meta property="og:title" content="携帯電話ニュース">
+          <meta property="og:description" content="最新情報">
+        </head></html>"#;
+        let (body, _, had_errors) = encoding_rs::SHIFT_JIS.encode(source);
+        assert!(!had_errors);
+
+        let decoded = decode_twitter_card_html(&body, "text/html");
+        let preview = extract_twitter_card_preview(
+            &decoded,
+            &Url::parse("https://example.com/articles/42").unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(preview.title, "携帯電話ニュース");
+        assert_eq!(preview.description, "最新情報");
     }
 
     #[test]
