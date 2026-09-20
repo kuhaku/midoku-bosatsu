@@ -15,6 +15,11 @@ use std::path::Path;
 use tauri::{ipc::Response, AppHandle, Manager, State};
 use thread_hiding::{HiddenThreadRef, ThreadHidingService};
 
+#[cfg(desktop)]
+fn window_state_flags() -> tauri_plugin_window_state::StateFlags {
+    tauri_plugin_window_state::StateFlags::SIZE
+}
+
 #[derive(serde::Serialize)]
 struct PostFormEncodingWarning {
     encoding: String,
@@ -475,7 +480,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init());
 
     #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_process::init());
+    let builder = builder.plugin(tauri_plugin_process::init()).plugin(
+        tauri_plugin_window_state::Builder::default()
+            .with_state_flags(window_state_flags())
+            .build(),
+    );
 
     builder
         .manage(reader_state)
@@ -526,4 +535,17 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod window_state_tests {
+    #[test]
+    fn remembers_only_the_window_size() {
+        let flags = super::window_state_flags();
+
+        assert_eq!(
+            flags.bits(),
+            tauri_plugin_window_state::StateFlags::SIZE.bits()
+        );
+    }
 }
