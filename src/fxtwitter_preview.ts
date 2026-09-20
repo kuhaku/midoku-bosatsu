@@ -8,6 +8,20 @@ export type FxTwitterVideo = {
   thumbnailUrl: string;
 };
 
+export type FxTwitterCommunityNotePart = {
+  text: string;
+  url?: string;
+};
+
+export type FxTwitterCommunityNote = {
+  parts: FxTwitterCommunityNotePart[];
+};
+
+export type FxTwitterCommunityNoteRenderer = {
+  appendText: (text: string) => void;
+  appendLink: (url: string, text: string) => void;
+};
+
 export type FxTwitterPreviewPost = {
   authorName: string;
   authorHandle: string;
@@ -16,6 +30,7 @@ export type FxTwitterPreviewPost = {
   translatedText: string;
   photoUrls: string[];
   videos: FxTwitterVideo[];
+  communityNote?: FxTwitterCommunityNote;
   quote?: FxTwitterPreviewPost;
 };
 
@@ -88,6 +103,70 @@ export function parseFxTwitterStatusUrl(rawUrl: string): FxTwitterStatusReferenc
   return { id, url: url.href };
 }
 
+function normalizeHttpUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeFxTwitterCommunityNote(value: unknown): FxTwitterCommunityNote | null {
+  if (!value || typeof value !== 'object') return null;
+  const text = (value as { text?: unknown }).text;
+  if (typeof text !== 'string' || !text.trim()) return null;
+
+  const rawFacets = (value as { facets?: unknown }).facets;
+  const facets = Array.isArray(rawFacets) ? [...rawFacets] : [];
+  facets.sort((left, right) => {
+    const leftIndex = left && typeof left === 'object' && Array.isArray((left as { indices?: unknown }).indices)
+      ? Number((left as { indices: unknown[] }).indices[0])
+      : Number.POSITIVE_INFINITY;
+    const rightIndex = right && typeof right === 'object' && Array.isArray((right as { indices?: unknown }).indices)
+      ? Number((right as { indices: unknown[] }).indices[0])
+      : Number.POSITIVE_INFINITY;
+    return leftIndex - rightIndex;
+  });
+
+  const parts: FxTwitterCommunityNotePart[] = [];
+  let lastIndex = 0;
+  for (const facet of facets) {
+    if (!facet || typeof facet !== 'object' || (facet as { type?: unknown }).type !== 'url') continue;
+    const indices = (facet as { indices?: unknown }).indices;
+    if (!Array.isArray(indices) || indices.length !== 2) continue;
+    const [fromIndex, toIndex] = indices;
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)
+      || fromIndex < lastIndex || toIndex <= fromIndex || toIndex > text.length) continue;
+    const url = normalizeHttpUrl((facet as { replacement?: unknown }).replacement);
+    if (!url) continue;
+
+    if (fromIndex > lastIndex) parts.push({ text: text.slice(lastIndex, fromIndex) });
+    const display = (facet as { display?: unknown }).display;
+    parts.push({
+      text: typeof display === 'string' && display ? display : text.slice(fromIndex, toIndex),
+      url,
+    });
+    lastIndex = toIndex;
+  }
+  if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex) });
+  return { parts };
+}
+
+export function renderFxTwitterCommunityNote(
+  note: FxTwitterCommunityNote,
+  renderer: FxTwitterCommunityNoteRenderer,
+): void {
+  for (const part of note.parts) {
+    if (part.url) {
+      renderer.appendLink(part.url, part.text);
+    } else {
+      renderer.appendText(part.text);
+    }
+  }
+}
+
 function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | null {
   if (!status || typeof status !== 'object') return null;
 
@@ -126,6 +205,7 @@ function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | 
   const translatedText = translation && typeof translation === 'object' && typeof (translation as { text?: unknown }).text === 'string'
     ? (translation as { text: string }).text
     : '';
+  const communityNote = normalizeFxTwitterCommunityNote((status as { community_note?: unknown }).community_note);
   const quote = normalizeFxTwitterPreviewPost((status as { quote?: unknown }).quote);
 
   return {
@@ -136,6 +216,7 @@ function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | 
     translatedText,
     photoUrls,
     videos: normalizedVideos,
+    ...(communityNote ? { communityNote } : {}),
     ...(quote ? { quote } : {}),
   };
 }

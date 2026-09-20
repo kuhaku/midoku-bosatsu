@@ -98,6 +98,7 @@ import {
   normalizeFxTwitterPreview,
   parseFxTwitterPreviewTextLinks,
   parseFxTwitterStatusUrl,
+  renderFxTwitterCommunityNote,
   selectFxTwitterPreviewText,
   truncateFxTwitterPreviewText,
   type FxTwitterPreviewPost,
@@ -2303,6 +2304,23 @@ function appendFxTwitterPreviewMedia(preview: FxTwitterPreviewPost, card: HTMLEl
   if (media.childElementCount > 0) card.append(media);
 }
 
+function appendFxTwitterCommunityNote(preview: FxTwitterPreviewPost, card: HTMLElement): void {
+  if (!preview.communityNote) return;
+
+  const note = document.createElement('aside');
+  note.className = 'fxtwitter-preview-community-note';
+  note.setAttribute('aria-label', 'コミュニティノート');
+  const heading = document.createElement('strong');
+  heading.textContent = 'コミュニティノート';
+  const body = document.createElement('p');
+  renderFxTwitterCommunityNote(preview.communityNote, {
+    appendText: (text) => body.append(document.createTextNode(text)),
+    appendLink: (url, text) => body.append(createExternalLink(url, text)),
+  });
+  note.append(heading, body);
+  card.append(note);
+}
+
 function buildFxTwitterPreviewPost(
   preview: FxTwitterPreviewPost,
   translated: boolean,
@@ -2365,6 +2383,7 @@ function buildFxTwitterPreviewPost(
     });
   }
   card.append(header, text);
+  appendFxTwitterCommunityNote(preview, card);
   appendFxTwitterPreviewMedia(preview, card);
   return card;
 }

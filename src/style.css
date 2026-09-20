@@ -892,6 +892,20 @@ button:disabled { cursor: default; opacity: .45; }
   outline-offset: 3px;
 }
 
+.fxtwitter-preview-community-note {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--post-link-unvisited-color);
+  border-radius: 4px;
+  background: var(--color-panel);
+}
+
+.fxtwitter-preview-community-note p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .fxtwitter-preview-media {
   display: flex;
   flex-wrap: wrap;

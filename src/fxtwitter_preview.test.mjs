@@ -4,6 +4,7 @@ import {
   normalizeFxTwitterPreview,
   parseFxTwitterPreviewTextLinks,
   parseFxTwitterStatusUrl,
+  renderFxTwitterCommunityNote,
   selectFxTwitterPreviewText,
   truncateFxTwitterPreviewText,
 } from './fxtwitter_preview.ts';
@@ -97,6 +98,104 @@ test('FxTwitterレスポンスの翻訳文と引用先ポストをカード用�
       videos: [],
     },
   });
+});
+
+test('FxTwitterレスポンスのコミュニティノートと出典リンクを安全に正規化する', () => {
+  assert.deepEqual(normalizeFxTwitterPreview({
+    status: {
+      url: 'https://x.com/example/status/123',
+      text: 'Original post',
+      author: { name: '投稿者', screen_name: 'example' },
+      community_note: {
+        text: '誤りです。出典と危険',
+        facets: [
+          {
+            type: 'url',
+            indices: [5, 7],
+            replacement: 'https://example.com/source',
+            display: '資料',
+          },
+          {
+            type: 'url',
+            indices: [8, 10],
+            replacement: 'javascript:alert(1)',
+            display: '危険',
+          },
+        ],
+      },
+      quote: {
+        url: 'https://x.com/quoted/status/456',
+        text: 'Quoted post',
+        author: { name: '引用先', screen_name: 'quoted' },
+        community_note: {
+          text: '引用先への注記',
+          facets: [],
+        },
+      },
+    },
+  }), {
+    authorName: '投稿者',
+    authorHandle: 'example',
+    statusUrl: 'https://x.com/example/status/123',
+    statusId: '123',
+    text: 'Original post',
+    translatedText: '',
+    photoUrls: [],
+    videos: [],
+    communityNote: {
+      parts: [
+        { text: '誤りです。' },
+        { text: '資料', url: 'https://example.com/source' },
+        { text: 'と危険' },
+      ],
+    },
+    quote: {
+      authorName: '引用先',
+      authorHandle: 'quoted',
+      statusUrl: 'https://x.com/quoted/status/456',
+      text: 'Quoted post',
+      translatedText: '',
+      photoUrls: [],
+      videos: [],
+      communityNote: {
+        parts: [{ text: '引用先への注記' }],
+      },
+    },
+  });
+});
+
+test('本文が空または不正なコミュニティノートは表示対象にしない', () => {
+  const preview = normalizeFxTwitterPreview({
+    status: {
+      url: 'https://x.com/example/status/123',
+      text: 'Original post',
+      community_note: { text: '   ', facets: [] },
+    },
+  });
+
+  assert.ok(preview);
+  assert.equal(preview.communityNote, undefined);
+});
+
+test('コミュニティノートは本文と出典リンクの順序を保って描画する', () => {
+  const operations = [];
+
+  renderFxTwitterCommunityNote({
+    parts: [
+      { text: '背景情報は' },
+      { text: '公式資料', url: 'https://example.com/source' },
+      { text: 'を参照。' },
+    ],
+  }, {
+    appendText: (text) => operations.push({ type: 'text', text }),
+    appendLink: (url, text) => operations.push({ type: 'link', url, text }),
+  });
+
+  assert.deepEqual(operations, [
+    { type: 'text', text: '背景情報は' },
+    { type: 'link', url: 'https://example.com/source', text: '公式資料' },
+    { type: 'text', text: 'を参照。' },
+  ]);
 });
 
 test('翻訳文がある場合だけプレビュー本文を翻訳文へ切り替える', () => {
