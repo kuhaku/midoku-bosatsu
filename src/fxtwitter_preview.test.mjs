@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as fxTwitterPreviewModule from './fxtwitter_preview.ts';
 import {
   normalizeFxTwitterPreview,
   parseFxTwitterPreviewTextLinks,
@@ -8,6 +9,80 @@ import {
   selectFxTwitterPreviewText,
   truncateFxTwitterPreviewText,
 } from './fxtwitter_preview.ts';
+
+test('FxTwitterの青色の個人認証だけを青バッジとして正規化する', () => {
+  const normalizeVerification = (verification) => normalizeFxTwitterPreview({
+    status: {
+      id: '123',
+      url: 'https://x.com/example/status/123',
+      text: '投稿',
+      author: { name: '投稿者', screen_name: 'example', verification },
+    },
+  })?.authorIsBlueVerified;
+
+  assert.equal(normalizeVerification({ verified: true, type: 'individual' }), true);
+  assert.equal(normalizeVerification({ verified: true, type: 'organization' }), undefined);
+  assert.equal(normalizeVerification({ verified: true, type: 'government' }), undefined);
+  assert.equal(normalizeVerification({ verified: false, type: 'individual' }), undefined);
+  assert.equal(normalizeVerification('invalid'), undefined);
+});
+
+test('青バッジユーザーは表示名、青バッジ、ハンドルの順にヘッダーへ追加する', () => {
+  const children = [];
+  const documentRef = {
+    createElement: () => ({
+      className: '',
+      textContent: '',
+      title: '',
+      attributes: new Map(),
+      setAttribute(name, value) {
+        this.attributes.set(name, value);
+      },
+    }),
+  };
+  const container = { append: (child) => children.push(child) };
+  const author = { kind: 'author' };
+  const translationLink = { kind: 'translation' };
+
+  fxTwitterPreviewModule.appendFxTwitterAuthorHeader(
+    { authorHandle: 'example', authorIsBlueVerified: true },
+    container,
+    author,
+    translationLink,
+    documentRef,
+  );
+
+  assert.equal(children.length, 4);
+  assert.equal(children[0], author);
+  assert.equal(children[1].className, 'fxtwitter-preview-blue-badge');
+  assert.equal(children[1].textContent, '●');
+  assert.equal(children[1].title, '青バッジ');
+  assert.equal(children[1].attributes.get('role'), 'img');
+  assert.equal(children[1].attributes.get('aria-label'), '青バッジ');
+  assert.equal(children[2].textContent, '@example');
+  assert.equal(children[3], translationLink);
+});
+
+test('青バッジユーザーでなければ表示名とハンドルの間にバッジを追加しない', () => {
+  const children = [];
+  const documentRef = {
+    createElement: () => ({ className: '', textContent: '' }),
+  };
+  const container = { append: (child) => children.push(child) };
+  const author = { kind: 'author' };
+
+  fxTwitterPreviewModule.appendFxTwitterAuthorHeader(
+    { authorHandle: 'example' },
+    container,
+    author,
+    undefined,
+    documentRef,
+  );
+
+  assert.equal(children.length, 2);
+  assert.equal(children[0], author);
+  assert.equal(children[1].textContent, '@example');
+});
 
 test('X/Twitterのstatus URLだけをFxTwitter API用に識別する', () => {
   assert.deepEqual(
@@ -127,7 +202,11 @@ test('FxTwitterレスポンスの翻訳文と引用先ポストをカード用�
         url: 'https://x.com/quoted/status/456',
         text: 'Quoted post',
         translation: { text: '引用先の翻訳' },
-        author: { name: '引用先', screen_name: 'quoted' },
+        author: {
+          name: '引用先',
+          screen_name: 'quoted',
+          verification: { verified: true, type: 'individual' },
+        },
       },
     },
   }), {
@@ -142,6 +221,7 @@ test('FxTwitterレスポンスの翻訳文と引用先ポストをカード用�
     quote: {
       authorName: '引用先',
       authorHandle: 'quoted',
+      authorIsBlueVerified: true,
       statusUrl: 'https://x.com/quoted/status/456',
       text: 'Quoted post',
       translatedText: '引用先の翻訳',
@@ -304,14 +384,6 @@ test('FxTwitterカードは翻訳と原文を切り替え、引用先ポスト�
   assert.match(main, /translationLink\.textContent = translated \? '原文' : '翻訳'/u);
   assert.match(main, /preview\.quote/u);
   assert.match(main, /fxtwitter-preview-quote/u);
-});
-
-test('FxTwitterカードの翻訳リンクはスクリーンネームの右に置く', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const main = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
-
-  assert.match(main, /header\.append\(handle, translationLink\);/u);
-  assert.doesNotMatch(main, /card\.append\(content, translationLink\);/u);
 });
 
 test('Xの動画サムネイルはリンクへのホバー時だけ画像を少し暗くする', async () => {

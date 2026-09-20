@@ -25,6 +25,7 @@ export type FxTwitterCommunityNoteRenderer = {
 export type FxTwitterPreviewPost = {
   authorName: string;
   authorHandle: string;
+  authorIsBlueVerified?: true;
   statusUrl: string;
   text: string;
   translatedText: string;
@@ -45,6 +46,40 @@ const httpUrlPattern = /https?:\/\/[^\s<>"']+/gi;
 const trailingUrlPunctuationPattern = /[)\]\}）】」』〉》、。！？,.!?;:…]+$/u;
 
 export type FxTwitterPreviewTextPart = { text: string; url?: string };
+
+function appendFxTwitterBlueBadge(
+  preview: Pick<FxTwitterPreviewPost, 'authorIsBlueVerified'>,
+  container: Pick<HTMLElement, 'append'>,
+  documentRef: Pick<Document, 'createElement'> = document,
+): void {
+  if (!preview.authorIsBlueVerified) return;
+
+  const badge = documentRef.createElement('span');
+  badge.className = 'fxtwitter-preview-blue-badge';
+  badge.textContent = '●';
+  badge.title = '青バッジ';
+  badge.setAttribute('role', 'img');
+  badge.setAttribute('aria-label', '青バッジ');
+  container.append(badge);
+}
+
+export function appendFxTwitterAuthorHeader(
+  preview: Pick<FxTwitterPreviewPost, 'authorHandle' | 'authorIsBlueVerified'>,
+  container: Pick<HTMLElement, 'append'>,
+  author: Node,
+  translationLink?: Node,
+  documentRef: Pick<Document, 'createElement'> = document,
+): void {
+  container.append(author);
+  appendFxTwitterBlueBadge(preview, container, documentRef);
+
+  if (preview.authorHandle) {
+    const handle = documentRef.createElement('span');
+    handle.textContent = `@${preview.authorHandle}`;
+    container.append(handle);
+  }
+  if (translationLink) container.append(translationLink);
+}
 
 export function parseFxTwitterPreviewTextLinks(text: string): FxTwitterPreviewTextPart[] {
   const parts: FxTwitterPreviewTextPart[] = [];
@@ -183,6 +218,12 @@ function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | 
   const authorHandle = author && typeof author === 'object' && typeof (author as { screen_name?: unknown }).screen_name === 'string'
     ? (author as { screen_name: string }).screen_name
     : '';
+  const verification = author && typeof author === 'object'
+    ? (author as { verification?: unknown }).verification
+    : undefined;
+  const authorIsBlueVerified = verification && typeof verification === 'object'
+    && (verification as { verified?: unknown }).verified === true
+    && (verification as { type?: unknown }).type === 'individual';
   const photos = (status as { media?: { photos?: unknown } }).media?.photos;
   const photoUrls = Array.isArray(photos)
     ? photos.flatMap((photo) => photo && typeof photo === 'object' && typeof (photo as { url?: unknown }).url === 'string'
@@ -213,6 +254,7 @@ function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | 
   return {
     authorName,
     authorHandle,
+    ...(authorIsBlueVerified ? { authorIsBlueVerified: true as const } : {}),
     statusUrl,
     text,
     translatedText,
