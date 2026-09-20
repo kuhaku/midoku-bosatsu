@@ -53,6 +53,7 @@
   --color-button-hover: rgb(from var(--color-button) calc(r + 13) calc(g + 13) calc(b + 13));
   --color-button-border: var(--post-quote-color);
   --color-badge-text: var(--unread-badge-text-color);
+  --color-fxtwitter-blue-badge: #1d9bf0;
   --color-unread-accent: var(--unread-accent-color);
   --color-error: #ff9b9b;
   --color-error-bg: #542f2f;
@@ -859,6 +860,11 @@ button:disabled { cursor: default; opacity: .45; }
 
 .fxtwitter-preview-header span {
   color: var(--color-muted);
+}
+
+.fxtwitter-preview-header .fxtwitter-preview-blue-badge {
+  color: var(--color-fxtwitter-blue-badge);
+  line-height: 1;
 }
 
 .fxtwitter-preview-post {

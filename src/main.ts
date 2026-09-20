@@ -95,6 +95,7 @@ import {
   threadVisibilityKey,
 } from './thread_visibility.ts';
 import {
+  appendFxTwitterAuthorHeader,
   normalizeFxTwitterPreview,
   parseFxTwitterPreviewTextLinks,
   parseFxTwitterStatusUrl,
@@ -2332,27 +2333,17 @@ function buildFxTwitterPreviewPost(
   const header = document.createElement('div');
   header.className = 'fxtwitter-preview-header';
   const authorLabel = preview.authorName || 'Xの投稿';
+  let author: HTMLElement;
   if (preview.authorHandle) {
-    header.append(createExternalLink(
+    author = createExternalLink(
       `https://x.com/${encodeURIComponent(preview.authorHandle)}`,
       authorLabel,
-    ));
+    );
   } else {
-    const author = document.createElement('strong');
+    author = document.createElement('strong');
     author.textContent = authorLabel;
-    header.append(author);
   }
-  if (preview.authorHandle) {
-    const handle = document.createElement('span');
-    handle.textContent = `@${preview.authorHandle}`;
-    if (translationLink) {
-      header.append(handle, translationLink);
-    } else {
-      header.append(handle);
-    }
-  } else if (translationLink) {
-    header.append(translationLink);
-  }
+  appendFxTwitterAuthorHeader(preview, header, author, translationLink);
   const text = document.createElement('p');
   text.className = 'fxtwitter-preview-text';
   const previewText = selectFxTwitterPreviewText(preview, translated);
