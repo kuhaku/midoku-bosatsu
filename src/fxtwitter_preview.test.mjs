@@ -65,6 +65,57 @@ test('投稿本文がないFxTwitterレスポンスはカードとして扱わ�
   assert.equal(normalizeFxTwitterPreview({ code: 404, status: null }), null);
 });
 
+test('本文がなくても写真または動画があるX投稿はカードとして扱う', () => {
+  const mediaCases = [
+    {
+      media: { photos: [{ url: 'https://pbs.twimg.com/media/example.jpg' }] },
+      expectedPhotoUrls: ['https://pbs.twimg.com/media/example.jpg'],
+      expectedVideos: [],
+    },
+    {
+      media: {
+        videos: [{
+          url: 'https://video.twimg.com/ext_tw_video/example.mp4',
+          thumbnail_url: 'https://pbs.twimg.com/tweet_video_thumb/example.jpg',
+        }],
+      },
+      expectedPhotoUrls: [],
+      expectedVideos: [{
+        url: 'https://video.twimg.com/ext_tw_video/example.mp4',
+        thumbnailUrl: 'https://pbs.twimg.com/tweet_video_thumb/example.jpg',
+      }],
+    },
+  ];
+
+  for (const { media, expectedPhotoUrls, expectedVideos } of mediaCases) {
+    const preview = normalizeFxTwitterPreview({
+      status: {
+        id: '2101297340271530173',
+        url: 'https://x.com/example/status/2101297340271530173',
+        text: '',
+        author: { name: '投稿者', screen_name: 'example' },
+        media,
+      },
+    });
+
+    assert.ok(preview);
+    assert.equal(preview.text, '');
+    assert.deepEqual(preview.photoUrls, expectedPhotoUrls);
+    assert.deepEqual(preview.videos, expectedVideos);
+  }
+});
+
+test('本文・写真・動画がすべてないX投稿はカードとして扱わない', () => {
+  assert.equal(normalizeFxTwitterPreview({
+    status: {
+      id: '123',
+      url: 'https://x.com/example/status/123',
+      text: '',
+      media: { photos: [], videos: [] },
+    },
+  }), null);
+});
+
 test('FxTwitterレスポンスの翻訳文と引用先ポストをカード用に正規化する', () => {
   assert.deepEqual(normalizeFxTwitterPreview({
     status: {

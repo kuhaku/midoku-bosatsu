@@ -170,8 +170,8 @@ export function renderFxTwitterCommunityNote(
 function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | null {
   if (!status || typeof status !== 'object') return null;
 
-  const text = (status as { text?: unknown }).text;
-  if (typeof text !== 'string' || !text.trim()) return null;
+  const rawText = (status as { text?: unknown }).text;
+  const text = typeof rawText === 'string' ? rawText : '';
   const statusUrl = typeof (status as { url?: unknown }).url === 'string'
     ? (status as { url: string }).url
     : '';
@@ -200,6 +200,8 @@ function normalizeFxTwitterPreviewPost(status: unknown): FxTwitterPreviewPost | 
       }]
       : [])
     : [];
+
+  if (!text.trim() && photoUrls.length === 0 && normalizedVideos.length === 0) return null;
 
   const translation = (status as { translation?: unknown }).translation;
   const translatedText = translation && typeof translation === 'object' && typeof (translation as { text?: unknown }).text === 'string'
