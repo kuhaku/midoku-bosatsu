@@ -236,6 +236,12 @@ fn twitter_card_display_url(requested_url: &Url, fetched_url: &Url) -> Url {
     }
 }
 
+fn should_keep_twitter_card_html_prefix(page_url: &Url) -> bool {
+    page_url
+        .host_str()
+        .is_some_and(|host| is_amazon_japan_host(host) || is_wikipedia_host(host))
+}
+
 fn twitter_card_resource_url(raw_url: &str) -> Result<Url, String> {
     let mut url = Url::parse(raw_url).map_err(|e| format!("Twitter Card画像URLが不正です: {e}"))?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -440,6 +446,10 @@ fn twitter_card_image_data_url(content_type: &str, body: &[u8]) -> Option<String
     ))
 }
 
+fn is_wikipedia_host(host: &str) -> bool {
+    host == "wikipedia.org" || host.ends_with(".wikipedia.org")
+}
+
 fn extract_twitter_card_preview(html: &str, page_url: &Url) -> Option<TwitterCardPreview> {
     let document = kuchikiki::parse_html().one(html).document_node;
     let mut metadata = HashMap::<String, String>::new();
@@ -473,12 +483,28 @@ fn extract_twitter_card_preview(html: &str, page_url: &Url) -> Option<TwitterCar
         .or_else(|| metadata.get("og:title"))
         .cloned();
     let title = card_title.clone().or(html_title).unwrap_or_default();
-    let description = metadata
+    let metadata_description = metadata
         .get("twitter:description")
         .or_else(|| metadata.get("og:description"))
         .or_else(|| metadata.get("description"))
-        .cloned()
-        .unwrap_or_default();
+        .cloned();
+    let wikipedia_lead = page_url
+        .host_str()
+        .filter(|host| is_wikipedia_host(host))
+        .and_then(|_| {
+            [
+                "#mw-content-text > .mw-parser-output > section[data-mw-section-id=\"0\"] > p",
+                "#mw-content-text > .mw-parser-output > p",
+            ]
+            .into_iter()
+            .find_map(|selector| {
+                document.select(selector).ok()?.find_map(|paragraph| {
+                    let text = paragraph.text_contents().trim().to_string();
+                    (!text.is_empty()).then_some(text)
+                })
+            })
+        });
+    let description = wikipedia_lead.or(metadata_description).unwrap_or_default();
     let metadata_image_url = metadata
         .get("twitter:image")
         .or_else(|| metadata.get("twitter:image:src"))
@@ -785,7 +811,7 @@ impl ReaderState {
         if !twitter_card_content_type_is_html(&content_type) {
             return Ok(None);
         }
-        let keep_html_prefix = page_url.host_str().is_some_and(is_amazon_japan_host);
+        let keep_html_prefix = should_keep_twitter_card_html_prefix(&page_url);
         let Some(body) = read_limited_response(
             &mut response,
             TWITTER_CARD_HTML_LIMIT_BYTES,
@@ -1828,6 +1854,23 @@ mod tests {
     }
 
     #[test]
+    fn keeps_html_prefix_for_large_amazon_and_wikipedia_pages() {
+        for url in [
+            "https://www.amazon.co.jp/dp/B0GZDK6JYB",
+            "https://ja.wikipedia.org/wiki/菩薩",
+            "https://en.wikipedia.org/wiki/United_States",
+        ] {
+            assert!(
+                should_keep_twitter_card_html_prefix(&Url::parse(url).unwrap()),
+                "{url}"
+            );
+        }
+        assert!(!should_keep_twitter_card_html_prefix(
+            &Url::parse("https://example.com/large-article").unwrap()
+        ));
+    }
+
+    #[test]
     fn twitter_card_page_url_rejects_excluded_sites_and_media_extensions() {
         for url in [
             "https://x.com./example/status/123",
@@ -1948,6 +1991,41 @@ mod tests {
                 image_url: "https://cdn.example.com/card.png".to_string(),
                 site_name: "example.com".to_string(),
             })
+        );
+    }
+
+    #[test]
+    fn uses_lead_paragraph_as_description_only_for_wikipedia_pages() {
+        let html = r#"
+          <html><head>
+            <meta property="og:title" content="菩薩 - Wikipedia">
+            <meta property="og:image" content="https://upload.wikimedia.org/example.jpg">
+          </head><body>
+            <div class="mw-parser-output"><p>本文外の段落</p></div>
+            <div id="mw-content-text">
+              <div class="mw-parser-output">
+                <section data-mw-section-id="0">
+                  <p>   </p>
+                  <p><b>菩薩</b>とは、仏教において悟りを求める衆生を意味する。</p>
+                </section>
+              </div>
+            </div>
+          </body></html>
+        "#;
+        let wikipedia_url = Url::parse("https://ja.wikipedia.org/wiki/菩薩").unwrap();
+        let generic_url = Url::parse("https://example.com/wiki/菩薩").unwrap();
+
+        assert_eq!(
+            extract_twitter_card_preview(html, &wikipedia_url)
+                .unwrap()
+                .description,
+            "菩薩とは、仏教において悟りを求める衆生を意味する。"
+        );
+        assert_eq!(
+            extract_twitter_card_preview(html, &generic_url)
+                .unwrap()
+                .description,
+            ""
         );
     }
 
