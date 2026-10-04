@@ -17,7 +17,7 @@ use thread_hiding::{HiddenThreadRef, ThreadHidingService};
 
 #[cfg(desktop)]
 fn window_state_flags() -> tauri_plugin_window_state::StateFlags {
-    tauri_plugin_window_state::StateFlags::SIZE
+    tauri_plugin_window_state::StateFlags::SIZE | tauri_plugin_window_state::StateFlags::POSITION
 }
 
 #[derive(serde::Serialize)]
@@ -540,12 +540,14 @@ pub fn run() {
 #[cfg(test)]
 mod window_state_tests {
     #[test]
-    fn remembers_only_the_window_size() {
+    fn remembers_the_window_size_and_position() {
         let flags = super::window_state_flags();
 
         assert_eq!(
             flags.bits(),
-            tauri_plugin_window_state::StateFlags::SIZE.bits()
+            (tauri_plugin_window_state::StateFlags::SIZE
+                | tauri_plugin_window_state::StateFlags::POSITION)
+                .bits()
         );
     }
 }

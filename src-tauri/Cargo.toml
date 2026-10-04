@@ -1,6 +1,6 @@
 [package]
 name = "midoku-bosatsu"
-version = "1.0.2"
+version = "1.0.3"
 description = "Midoku Bosatsu: a cross-platform reader for Strange-World BBSs."
 authors = ["Kuhaku"]
 edition = "2021"
@@ -10,12 +10,12 @@ name = "midoku_bosatsu_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.3", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.5", features = [] }
-tauri-plugin-opener = "2.5.4"
-tauri-plugin-dialog = "2.7.2"
+tauri = { version = "2.12.1", features = [] }
+tauri-plugin-dialog = "2.8.1"
+tauri-plugin-opener = "2.7.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.23"
@@ -28,6 +28,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 tokio = { version = "1", features = ["time"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
-tauri-plugin-process = "2.3.1"
-tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.4.0"
+tauri-plugin-updater = "2.13.1"
 tauri-plugin-window-state = "2.4.1"

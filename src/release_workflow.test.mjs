@@ -10,6 +10,15 @@ const versionGuardPath = fileURLToPath(
   new URL('../scripts/verify-release-version.mjs', import.meta.url),
 );
 
+function rustCacheWorkspace(workflow) {
+  const cacheStep = workflow.match(
+    /- name: Cache Rust dependencies(?<step>[\s\S]*?)(?=\n {6}- name:)/,
+  );
+  const workspace = cacheStep?.groups?.step.match(/workspaces:\s*([^\n]+)/)?.[1];
+
+  return workspace?.split('->')[0].trim() ?? '.';
+}
+
 async function createVersionFixture(versions) {
   const directory = await mkdtemp(join(tmpdir(), 'midoku-release-version-'));
   await mkdir(join(directory, 'src-tauri'));
@@ -139,6 +148,17 @@ test('release workflow builds each platform in parallel and publishes all assets
   assert.match(workflow, /publish-release:[\s\S]*?gh release edit/);
   assert.match(workflow, /--draft=false/);
   assert.match(workflow, /--prerelease/);
+});
+
+test('Rust dependency cache runs Cargo in the configured Rust workspace', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
+  const workspace = rustCacheWorkspace(workflow);
+  const result = spawnSync('cargo', ['metadata', '--format-version', '1', '--no-deps'], {
+    cwd: fileURLToPath(new URL(`../${workspace}/`, import.meta.url)),
+    encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, result.stderr);
 });
 
 for (const platform of ['linux', 'macos', 'windows']) {
