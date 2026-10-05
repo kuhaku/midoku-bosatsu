@@ -12,4 +12,6 @@ npx npm-check-updates -u
     cd ../
 }
 
+npm run tauri:versions:check
+
 bash test.sh
