@@ -61,7 +61,7 @@ xattr -cr /Applications/midoku-bosatsu.app
 
 ### Linux
 
-- 拡張子が `.deb` や `.rpm` や `.AppImage` ももの (環境に合ったものを選んでください)
+- 拡張子が `.deb` や `.rpm` や `.AppImage` のもの (環境に合ったものを選んでください)
 
 #### 初心者向け
 
