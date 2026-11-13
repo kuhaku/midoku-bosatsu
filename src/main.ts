@@ -4805,9 +4805,8 @@ function renderParticipantCounts(): void {
     const entry = document.createElement('span');
     entry.className = 'bbs-participant-count';
 
-    const badge = document.createElement('span');
+    const badge = createExternalLink(item.siteUrl, item.siteName);
     badge.className = `site-badge ${bbsBadgeClassName(item.siteId)}`;
-    badge.textContent = item.siteName;
 
     const count = document.createElement('span');
     count.className = 'bbs-participant-count-value';
@@ -6660,6 +6659,7 @@ function handlePostContentCopy(event: ClipboardEvent): void {
 }
 
 postsElement.addEventListener('click', handlePostContentClick);
+bbsParticipantCounts.addEventListener('click', handlePostContentClick);
 postsElement.addEventListener('contextmenu', openPostContextMenu);
 postsElement.addEventListener('mouseover', handleImageThumbnailMouseOver);
 postsElement.addEventListener('mouseout', handleImageThumbnailMouseOut);

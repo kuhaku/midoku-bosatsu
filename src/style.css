@@ -505,6 +505,10 @@ button:disabled { cursor: default; opacity: .45; }
   white-space: nowrap;
 }
 
+.bbs-participant-count a.site-badge {
+  text-decoration: none;
+}
+
 .bbs-participant-count-value {
   font-variant-numeric: tabular-nums;
 }
