@@ -1,6 +1,8 @@
 import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { createScreenZoomNotice, nextScreenZoom, screenZoomDirection } from './screen_zoom.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { confirm as confirmDialog, open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
@@ -435,7 +437,7 @@ app.innerHTML = `
         </div>
         <button id="new-post-button" type="button" disabled>新規投稿</button>
         <button id="settings-button" type="button" disabled>設定</button>
-        <button id="shortcut-key-list-button" type="button">キー一覧</button>
+        <button id="shortcut-key-list-button" type="button">ショートカット</button>
       </nav>
 
       <div class="timeline-content">
@@ -499,6 +501,13 @@ app.innerHTML = `
       </header>
       <div class="bbs-action-view-content shortcut-key-list-view-content">
         <p class="shortcut-key-list-note">投稿タイムラインのショートカットは、一般設定でキーボード操作を有効にしている場合に使えます。</p>
+        <section aria-labelledby="shortcut-key-list-zoom-title">
+          <h3 id="shortcut-key-list-zoom-title">画面全体（すべての画面で有効）</h3>
+          <dl class="shortcut-key-list">
+            <dt><kbd>Ctrl + - / Command + -</kbd></dt><dd>画面全体を縮小（10%ずつ、最小50%）</dd>
+            <dt><kbd>Ctrl + Shift + - / Command + Shift + -</kbd></dt><dd>画面全体を拡大（10%ずつ、最大200%）</dd>
+          </dl>
+        </section>
         <section aria-labelledby="shortcut-key-list-post-navigation-title">
           <h3 id="shortcut-key-list-post-navigation-title">投稿タイムライン</h3>
           <dl class="shortcut-key-list">
@@ -1197,6 +1206,7 @@ app.innerHTML = `
     <button id="thread-hide-undo-button" type="button">戻す</button>
   </div>
   <div id="bbs-timeline-toast" class="bbs-timeline-toast" hidden role="status" aria-live="polite"></div>
+  <div id="screen-zoom-toast" class="bbs-timeline-toast screen-zoom-toast" popover="manual" role="status" aria-live="polite" aria-atomic="true"></div>
 `;
 
 const lastFetchElement = mustElement<HTMLElement>('#last-fetch');
@@ -7184,7 +7194,23 @@ bbsSettingsForm.addEventListener('submit', (event) => {
   void saveBbsSettings();
 });
 
+let screenZoom = 1;
+let screenZoomUpdate = Promise.resolve();
+const showScreenZoomNotice = createScreenZoomNotice(mustElement<HTMLElement>('#screen-zoom-toast'));
+
 document.addEventListener('keydown', async (event) => {
+  const zoomDirection = screenZoomDirection(event);
+  if (zoomDirection !== 0) {
+    event.preventDefault();
+    screenZoomUpdate = screenZoomUpdate.then(async () => {
+      const nextZoom = nextScreenZoom(screenZoom, zoomDirection);
+      await getCurrentWebview().setZoom(nextZoom);
+      screenZoom = nextZoom;
+      syncFixedStatusBarHeight();
+      showScreenZoomNotice(screenZoom);
+    }).catch((error) => console.error('画面の拡大縮小に失敗しました', error));
+    return;
+  }
   if (event.key === 'Escape' && !postContextMenu.hidden) {
     event.preventDefault();
     closePostContextMenu();
