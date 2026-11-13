@@ -1618,8 +1618,8 @@ button:disabled { cursor: default; opacity: .45; }
   outline: 2px solid var(--color-button-border);
   outline-offset: 4px;
 }
-.settings-section:not([open]) > .settings-section-heading { margin-bottom: 0; }
-.settings-section:not([open]) > .settings-section-heading .settings-section-description {
+details.settings-section:not([open]) > .settings-section-heading { margin-bottom: 0; }
+details.settings-section:not([open]) > .settings-section-heading .settings-section-description {
   display: none;
 }
 .settings-section-heading h3 {

@@ -1049,7 +1049,7 @@ app.innerHTML = `
           <div class="settings-section-heading">
             <div>
               <h3>一般設定</h3>
-              <p class="settings-section-description">一般設定をファイルとして保存したり、別の一般設定ファイルを読み込んだりできます。</p>
+              <p class="settings-section-description"><a href="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/global.toml" data-external-url="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/global.toml">GitHubにあるアプリ標準の一般設定ファイルを参照する</a></p>
             </div>
           </div>
           <div class="settings-inline-actions">
@@ -1061,7 +1061,7 @@ app.innerHTML = `
           <div class="settings-section-heading">
             <div>
               <h3>BBS設定</h3>
-              <p class="settings-section-description">BBS設定をファイルとして保存したり、別のBBS設定ファイルを読み込んだりできます。</p>
+              <p class="settings-section-description"><a href="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/bbs.toml" data-external-url="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/bbs.toml">GitHubにあるアプリ標準のBBS設定を参照する</a></p>
             </div>
           </div>
           <div class="settings-inline-actions">
@@ -1073,7 +1073,7 @@ app.innerHTML = `
           <div class="settings-section-heading">
             <div>
               <h3>表示スタイルCSS</h3>
-              <p class="settings-section-description">reader-style.cssをファイルとして保存したり、別の表示スタイルCSSを読み込んだりできます。</p>
+              <p class="settings-section-description"><a href="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/reader-style.css" data-external-url="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/reader-style.css">GitHubにあるアプリ標準の表示スタイルCSSを参照する</a></p>
             </div>
           </div>
           <div class="settings-inline-actions">
@@ -6660,6 +6660,7 @@ function handlePostContentCopy(event: ClipboardEvent): void {
 
 postsElement.addEventListener('click', handlePostContentClick);
 bbsParticipantCounts.addEventListener('click', handlePostContentClick);
+configFileSettingsDialog.addEventListener('click', handlePostContentClick);
 postsElement.addEventListener('contextmenu', openPostContextMenu);
 postsElement.addEventListener('mouseover', handleImageThumbnailMouseOver);
 postsElement.addEventListener('mouseout', handleImageThumbnailMouseOut);
