@@ -2416,6 +2416,18 @@ details.settings-section:not([open]) > .settings-section-heading .settings-secti
   margin-bottom: 2px;
 }
 
+#reply-list-header-actions {
+  margin-left: auto;
+}
+
+#reply-list-header-actions:empty {
+  display: none;
+}
+
+.bbs-action-view-header:has(#saved-posts-view-close[aria-label="レス一覧を閉じる"]) {
+  border-bottom: 0;
+}
+
 .bbs-action-view-content {
   min-height: 140px;
   overflow: auto;

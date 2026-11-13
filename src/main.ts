@@ -485,6 +485,7 @@ app.innerHTML = `
         <div>
           <h2 id="saved-posts-view-title">保存済み投稿</h2>
         </div>
+        <div id="reply-list-header-actions"></div>
         <button id="saved-posts-view-close" class="icon-button" type="button" aria-label="保存済み投稿を閉じる">閉じる</button>
       </header>
       <div id="saved-posts-view-content" class="bbs-action-view-content"></div>
@@ -1231,6 +1232,7 @@ const bbsActionViewContent = mustElement<HTMLDivElement>('#bbs-action-view-conte
 const bbsActionViewCloseButton = mustElement<HTMLButtonElement>('#bbs-action-view-close');
 const savedPostsView = mustElement<HTMLElement>('#saved-posts-view');
 const savedPostsViewContent = mustElement<HTMLDivElement>('#saved-posts-view-content');
+const replyListHeaderActions = mustElement<HTMLDivElement>('#reply-list-header-actions');
 const savedPostsViewCloseButton = mustElement<HTMLButtonElement>('#saved-posts-view-close');
 const postContextMenu = document.createElement('div');
 postContextMenu.className = 'post-context-menu';
@@ -3710,7 +3712,7 @@ function renderOwnReplies(): void {
   const fragment = document.createDocumentFragment();
   const markRepliesReadButton = document.createElement('button');
   markRepliesReadButton.type = 'button';
-  markRepliesReadButton.textContent = '表示中のレスを既読にする';
+  markRepliesReadButton.textContent = '表示中のレスを全て既読にする';
   markRepliesReadButton.disabled = replyUnreadCount(posts) === 0;
   markRepliesReadButton.addEventListener('click', () => {
     for (const post of posts) {
@@ -3722,11 +3724,7 @@ function renderOwnReplies(): void {
     persistPostLog();
     renderPosts();
   });
-  fragment.append(markRepliesReadButton);
-  const description = document.createElement('p');
-  description.className = 'bbs-action-view-message';
-  description.textContent = '自分の投稿へのレスは、手動で削除するまで保持されます。';
-  fragment.append(description);
+  replyListHeaderActions.replaceChildren(markRepliesReadButton);
   for (const post of posts) {
     const article = buildActionViewPost(post);
     const unread = post.reply_unread;
@@ -3771,6 +3769,7 @@ function openReplyListView(): void {
 }
 
 function renderSavedPosts(): void {
+  replyListHeaderActions.replaceChildren();
   if (postListViewMode === 'replies') {
     renderOwnReplies();
     return;
