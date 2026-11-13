@@ -3,11 +3,18 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import vm from 'node:vm';
+import { addArchivedReplies, readArchivedReplies } from './reply_archive.ts';
+import { repliesToOwnPosts } from './reply_notification.ts';
 
 const source = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
 function setup() {
   const state = {
     postsByKey: new Map(),
+    pendingReplyArchivePosts: new Map(),
+    replyArchive: { posts: [], deleted: [] },
+    replyNotificationUiState: { automatic: [], manual: [] },
+    addArchivedReplies, readArchivedReplies, repliesToOwnPosts,
+    persistReplyArchive(next) { state.replyArchive = next; },
     forcedUnreadPostKeys: new Set(['bbs:2']),
     readCursor: { timestamp: 1000, post_key: 'bbs:0' },
     config: { global: { max_posts: 666 } },
@@ -17,7 +24,7 @@ function setup() {
   };
   state.newestFirstPosts = () => [...state.postsByKey.values()].sort((a, b) => b.time - a.time);
   const context = vm.createContext(state);
-  for (const name of ['mergePosts', 'isPostUnread']) {
+  for (const name of ['mergePosts', 'isPostUnread', 'archivePendingReplies']) {
     const fn = source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))?.[0];
     assert.ok(fn);
     vm.runInContext(stripTypeScriptTypes(fn), context);
@@ -101,4 +108,31 @@ test('追加した投稿はタイムラインのツリーにも親子関係と�
     [post.id, depth, state.isPostUnread(post)]), [
     ['1', 0, true], ['2', 1, false], ['3', 2, false],
   ]);
+});
+
+
+test('表示上限を超えた返信も保存し、ログ削除と追跡終了で失わない', () => {
+  const state = setup();
+  state.config.global.max_posts = 1;
+  state.replyNotificationUiState.automatic = [{ site_id: 'bbs', post_id: 'own' }];
+  state.mergePosts([{ ...post('1', 2000), parent_id: 'own' }, post('2', 3000)]);
+  state.archivePendingReplies();
+  assert.equal(state.postsByKey.has('bbs:1'), false);
+  assert.equal(state.replyArchive.posts[0].id, '1');
+  assert.equal(state.replyArchive.posts[0].reply_unread, true);
+  state.postsByKey.clear();
+  state.replyNotificationUiState.automatic = [];
+  state.archivePendingReplies();
+  assert.equal(state.replyArchive.posts.length, 1);
+});
+
+test('スレッドで読んだ返信は、表示上限から外れても保存側を既読にする', () => {
+  const state = setup();
+  state.config.global.max_posts = 1;
+  state.replyNotificationUiState.automatic = [{ site_id: 'bbs', post_id: 'own' }];
+  const reply = { ...post('1', 2000), parent_id: 'own' };
+  state.mergePosts([reply, post('2', 3000)]);
+  state.archivePendingReplies();
+  state.mergePosts([reply], true);
+  assert.equal(state.replyArchive.posts[0].reply_unread, false);
 });

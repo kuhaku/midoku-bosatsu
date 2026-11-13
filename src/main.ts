@@ -1,3 +1,4 @@
+import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -23,6 +24,7 @@ import {
   notificationButtonViewModel,
   notificationSoundMimeType,
   knownDescendantPostIds,
+  repliesToOwnPosts,
   chooseOldestUnreadReplyPostKey,
   replyNotificationPostPresentation,
   replyNotificationActions,
@@ -401,6 +403,7 @@ type ResetHiddenThread = { site_id: string; thread_id: string; created_at: strin
 
 const READ_CURSOR_STORAGE_KEY = 'midoku-bosatsu.read-cursor.v1';
 const POST_LOG_STORAGE_KEY = 'midoku-bosatsu.post-log.v1';
+const REPLY_ARCHIVE_STORAGE_KEY = 'midoku-bosatsu.reply-archive.v1';
 const SAVED_POSTS_STORAGE_KEY = 'midoku-bosatsu.saved-posts.v1';
 const TEXT_SEARCH_HISTORY_STORAGE_KEY = 'midoku-bosatsu.text-search-history.v1';
 const DEFAULT_VIEWING_MODE_INTERVAL_SECONDS = 5;
@@ -424,14 +427,15 @@ app.innerHTML = `
       <button id="timeline-navigation-toggle" class="timeline-navigation-toggle" type="button" aria-controls="timeline-navigation" aria-expanded="true" aria-label="ナビを閉じる" title="ナビを閉じる">‹</button>
       <nav id="timeline-navigation" class="timeline-navigation" aria-label="投稿タイムラインの操作">
         <button id="reload-button" class="primary-button" type="button">未読リロード</button>
+        <button id="reply-list-button" type="button">レス一覧</button>
+        <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
         <div class="bbs-timeline-switcher">
           <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
           <div id="bbs-timeline-menu" class="bbs-timeline-menu" role="menu" aria-label="表示するBBSを選択"></div>
         </div>
-        <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
-        <button id="shortcut-key-list-button" type="button">キー一覧</button>
         <button id="new-post-button" type="button" disabled>新規投稿</button>
         <button id="settings-button" type="button" disabled>設定</button>
+        <button id="shortcut-key-list-button" type="button">キー一覧</button>
       </nav>
 
       <div class="timeline-content">
@@ -1246,6 +1250,8 @@ const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
 const fixedNewestPostButton = mustElement<HTMLButtonElement>('#fixed-newest-post-button');
+const replyListButton = mustElement<HTMLButtonElement>('#reply-list-button');
+let postListViewMode: 'saved' | 'replies' = 'saved';
 const savedPostsButton = mustElement<HTMLButtonElement>('#saved-posts-button');
 const shortcutKeyListButton = mustElement<HTMLButtonElement>('#shortcut-key-list-button');
 const unreadJumpButton = mustElement<HTMLButtonElement>('#unread-jump-button');
@@ -1543,6 +1549,9 @@ let currentPostKey: string | null = null;
 const isMacKeyboard = /Mac|iPhone|iPad|iPod/i.test(navigator.platform) || /Macintosh|Mac OS X/i.test(navigator.userAgent);
 const postsByKey = new Map<string, ParsedPost>();
 let savedPosts: SavedPost<ParsedPost>[] = [];
+let replyArchive: ReplyArchive<ParsedPost> = { posts: [], deleted: [] };
+let replyArchiveLoadFailed = false;
+const pendingReplyArchivePosts = new Map<string, ParsedPost>();
 const siteNames = new Map<string, string>();
 const siteBaseUrls = new Map<string, string>();
 const participantCounts = new Map<string, number | null>();
@@ -1924,7 +1933,9 @@ function mergePosts(posts: ParsedPost[], markRead = false): void {
   for (const post of posts) {
     const key = postKey(post);
     const timelineRead = markRead || postsByKey.get(key)?.timeline_read === true || post.timeline_read === true;
-    postsByKey.set(key, timelineRead ? { ...post, timeline_read: true } : post);
+    const mergedPost = timelineRead ? { ...post, timeline_read: true } : post;
+    postsByKey.set(key, mergedPost);
+    pendingReplyArchivePosts.set(key, mergedPost);
     if (timelineRead) forcedUnreadPostKeys.delete(key);
   }
 
@@ -1936,6 +1947,8 @@ function mergePosts(posts: ParsedPost[], markRead = false): void {
     postsByKey.delete(postKey(post));
   }
 
+  const nextArchive = readArchivedReplies(replyArchive, posts.filter(post => pendingReplyArchivePosts.get(postKey(post))?.timeline_read));
+  if (nextArchive !== replyArchive) persistReplyArchive(nextArchive);
   persistPostLog();
 }
 
@@ -2082,6 +2095,8 @@ function loadReadCursor(): ReadCursor | null {
 
 function saveReadCursor(cursor: ReadCursor): void {
   readCursor = cursor;
+  const next = readArchivedReplies(replyArchive, replyArchive.posts.filter(post => !isPostUnread(post)));
+  if (next !== replyArchive) persistReplyArchive(next);
   try {
     localStorage.setItem(READ_CURSOR_STORAGE_KEY, JSON.stringify(cursor));
   } catch {
@@ -3249,7 +3264,8 @@ function openPostContextMenu(event: MouseEvent): void {
   if (!key) return;
   const post = postsByKey.get(key)
     ?? bbsActionViewPosts.find((candidate) => postKey(candidate) === key)
-    ?? savedPosts.find((candidate) => postKey(candidate) === key);
+    ?? savedPosts.find((candidate) => postKey(candidate) === key)
+    ?? replyArchive.posts.find((candidate) => postKey(candidate) === key);
   if (!post) return;
 
   const entries = postContextMenuEntries({
@@ -3507,6 +3523,8 @@ async function refreshReplyNotificationUiState(): Promise<void> {
   try {
     const state = await invoke<TrackingUiState>('get_reply_notification_ui_state');
     replyNotificationUiState = state;
+    archivePendingReplies();
+    updateReplyList();
     setReplyNotificationFooterError(state.error?.trim() || null);
     updateNotificationButtons();
   } catch (error) {
@@ -3645,7 +3663,108 @@ function formatSavedAt(savedAt: string): string {
   }).format(date);
 }
 
+function persistReplyArchive(next: ReplyArchive<ParsedPost>): void {
+  if (replyArchiveLoadFailed) return;
+  replyArchive = next;
+  try {
+    localStorage.setItem(REPLY_ARCHIVE_STORAGE_KEY, JSON.stringify(next));
+  } catch (error) {
+    setFooterError(`レス一覧を保存できませんでした: ${String(error)}`);
+  }
+}
+
+function archivePendingReplies(): void {
+  const candidates = [...postsByKey.values(), ...pendingReplyArchivePosts.values()];
+  const next = addArchivedReplies(replyArchive, repliesToOwnPosts(candidates, replyNotificationUiState), isPostUnread);
+  if (next !== replyArchive) persistReplyArchive(next);
+  pendingReplyArchivePosts.clear();
+}
+
+function ownReplyPosts(): ArchivedReply<ParsedPost>[] {
+  return filterHiddenThreadPosts(replyArchive.posts, hiddenThreadKeys)
+    .filter(post => !isNgPost(post)).sort(compareNewestFirst);
+}
+
+function replyUnreadCount(posts = ownReplyPosts()): number {
+  return posts.filter(post => post.reply_unread).length;
+}
+
+function updateReplyList(): void {
+  const count = replyUnreadCount();
+  replyListButton.textContent = count > 0 ? `レス一覧 (${count})` : 'レス一覧';
+  if (!savedPostsView.hidden && postListViewMode === 'replies') renderSavedPosts();
+}
+
+function renderOwnReplies(): void {
+  const posts = ownReplyPosts();
+  const fragment = document.createDocumentFragment();
+  const markRepliesReadButton = document.createElement('button');
+  markRepliesReadButton.type = 'button';
+  markRepliesReadButton.textContent = '表示中のレスを既読にする';
+  markRepliesReadButton.disabled = replyUnreadCount(posts) === 0;
+  markRepliesReadButton.addEventListener('click', () => {
+    for (const post of posts) {
+      const livePost = postsByKey.get(postKey(post));
+      if (livePost) postsByKey.set(postKey(post), { ...livePost, timeline_read: true });
+      forcedUnreadPostKeys.delete(postKey(post));
+    }
+    persistReplyArchive(readArchivedReplies(replyArchive, posts));
+    persistPostLog();
+    renderPosts();
+  });
+  fragment.append(markRepliesReadButton);
+  const description = document.createElement('p');
+  description.className = 'bbs-action-view-message';
+  description.textContent = '自分の投稿へのレスは、手動で削除するまで保持されます。';
+  fragment.append(description);
+  for (const post of posts) {
+    const article = buildActionViewPost(post);
+    const unread = post.reply_unread;
+    article.classList.toggle('post-unread', unread);
+    article.dataset.unread = String(unread);
+    const meta = article.querySelector<HTMLElement>('.post-meta-primary');
+    const site = document.createElement('span');
+    site.className = `site-badge ${bbsBadgeClassName(post.site_id)}`;
+    site.textContent = siteNames.get(post.site_id) ?? post.site_id;
+    meta?.append(site);
+    if (unread) {
+      const badge = document.createElement('span');
+      badge.className = 'unread-badge';
+      badge.textContent = '未読';
+      meta?.append(badge);
+    }
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'saved-post-remove-button';
+    remove.textContent = '削除';
+    remove.setAttribute('aria-label', 'このレスを一覧から削除する');
+    remove.addEventListener('click', () => {
+      persistReplyArchive(deleteArchivedReply(replyArchive, post));
+      updateReplyList();
+    });
+    meta?.append(remove);
+    fragment.append(article);
+  }
+  if (posts.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'bbs-action-view-message';
+    empty.textContent = '表示できるレスはありません。';
+    fragment.append(empty);
+  }
+  clearObservedTwitterCardPreviews(savedPostsViewContent);
+  savedPostsViewContent.replaceChildren(fragment);
+}
+
+function openReplyListView(): void {
+  postListViewMode = 'replies';
+  openPostListView();
+}
+
 function renderSavedPosts(): void {
+  if (postListViewMode === 'replies') {
+    renderOwnReplies();
+    return;
+  }
   const fragment = document.createDocumentFragment();
   const visibleSavedPosts = filterHiddenThreadPosts(savedPosts, hiddenThreadKeys);
   const treeGroupsByKey = new Map(
@@ -3704,6 +3823,14 @@ function renderSavedPosts(): void {
 
 function openSavedPostsView(): void {
   if (!(config?.global.post_saving_enabled ?? true)) return;
+  postListViewMode = 'saved';
+  openPostListView();
+}
+
+function openPostListView(): void {
+  const title = postListViewMode === 'replies' ? 'レス一覧' : '保存済み投稿';
+  mustElement<HTMLElement>('#saved-posts-view-title').textContent = title;
+  savedPostsViewCloseButton.setAttribute('aria-label', `${title}を閉じる`);
   closeBbsActionView();
   closeShortcutKeyListView(false);
   closeTextSearch();
@@ -4239,6 +4366,7 @@ async function openBbsActionView(siteId: string, href: string, kind: BbsActionKi
     if (kind === 'thread' || kind === 'tree') {
       result.posts = result.posts.map((post) => ({ ...post, timeline_read: true }));
       mergePosts(result.posts, true);
+      archivePendingReplies();
       renderPosts();
     }
     renderBbsActionViewResult(result, kind, false);
@@ -4269,7 +4397,8 @@ function visiblePostElements(): HTMLElement[] {
 function getCurrentShortcutPost(): ParsedPost | undefined {
   if (!currentPostKey) return undefined;
   if (!savedPostsView.hidden) {
-    return savedPosts.find((post) => postKey(post) === currentPostKey);
+    return (postListViewMode === 'replies' ? ownReplyPosts() : savedPosts)
+      .find((post) => postKey(post) === currentPostKey);
   }
   return (!bbsActionView.hidden && bbsActionViewPosts.length > 0 ? bbsActionViewPosts : [...postsByKey.values()])
     .find((post) => postKey(post) === currentPostKey);
@@ -4958,6 +5087,7 @@ function renderPosts(): void {
   restoreCurrentPostSelection();
   updateUnreadControls(posts);
   renderReplyNotificationBanner();
+  updateReplyList();
 
   if (posts.length === 0) {
     noticeElement.hidden = false;
@@ -4994,7 +5124,7 @@ function applyDisplayConfig(globalConfig: GlobalConfig): void {
   refreshHighlightRegex(globalConfig);
   const enabled = globalConfig.post_saving_enabled ?? true;
   savedPostsButton.hidden = !enabled;
-  if (!enabled && !savedPostsView.hidden) closeSavedPostsView();
+  if (!enabled && !savedPostsView.hidden && postListViewMode === 'saved') closeSavedPostsView();
   const shortcutKeyListVisible = isShortcutKeyListNavigationVisible(globalConfig.keyboard_shortcuts_enabled);
   shortcutKeyListButton.hidden = !shortcutKeyListVisible;
   if (!shortcutKeyListVisible && !shortcutKeyListView.hidden) closeShortcutKeyListView(false);
@@ -5735,11 +5865,6 @@ async function runFetchCycle(forceInitial = false): Promise<void> {
     const trackingErrors = successfulResults
       .map((result) => result.reply_notification_error?.trim() ?? '')
       .filter(Boolean);
-    await refreshReplyNotificationUiState();
-    if (trackingErrors.length > 0) {
-      setReplyNotificationFooterError(trackingErrors.join(' / '));
-    }
-
     const notificationActions = replyNotificationActions(
       config.global.reply_notification_enabled,
       config.global.reply_notification_sound_enabled,
@@ -5748,6 +5873,10 @@ async function runFetchCycle(forceInitial = false): Promise<void> {
     for (const postKey of notificationActions.reply_post_keys) {
       replyNotificationPostKeys.add(postKey);
       forcedUnreadPostKeys.add(postKey);
+    }
+    await refreshReplyNotificationUiState();
+    if (trackingErrors.length > 0) {
+      setReplyNotificationFooterError(trackingErrors.join(' / '));
     }
     renderPosts();
     if (notificationActions.play_sound) {
@@ -6487,6 +6616,12 @@ async function bootstrap(): Promise<void> {
 
     applyReaderStyle(loadedStyle);
     applyDisplayConfig(loadedConfig.global);
+    try {
+      replyArchive = parseReplyArchive<ParsedPost>(localStorage.getItem(REPLY_ARCHIVE_STORAGE_KEY));
+    } catch (error) {
+      replyArchiveLoadFailed = true;
+      setFooterError(`レス一覧を読み込めませんでした: ${String(error)}`);
+    }
     loadPostLog();
     loadSavedPosts();
     await refreshHiddenThreadKeys();
@@ -6785,6 +6920,7 @@ fixedNewestPostButton.addEventListener('click', () => {
   jumpToNewestPost();
 });
 
+replyListButton.addEventListener('click', openReplyListView);
 savedPostsButton.addEventListener('click', openSavedPostsView);
 
 shortcutKeyListButton.addEventListener('click', openShortcutKeyListView);

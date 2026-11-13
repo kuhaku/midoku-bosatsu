@@ -161,3 +161,13 @@ export function knownDescendantPostIds(
 
   return descendants;
 }
+
+/** 投稿ログ内の、自分の投稿への直接返信。手動追跡や自己返信は含めない。 */
+export function repliesToOwnPosts<T extends ReplyTreePost>(posts: T[], state: TrackingUiState): T[] {
+  const ownKeys = new Set(state.automatic.map((post) => trackingKey(post.site_id, post.post_id)));
+  return posts.filter((post) => {
+    const parentId = post.parent_id?.trim();
+    return Boolean(parentId && ownKeys.has(trackingKey(post.site_id, parentId)))
+      && !ownKeys.has(trackingKey(post.site_id, post.id));
+  });
+}
