@@ -505,6 +505,7 @@ app.innerHTML = `
         <section aria-labelledby="shortcut-key-list-zoom-title">
           <h3 id="shortcut-key-list-zoom-title">画面全体（すべての画面で有効）</h3>
           <dl class="shortcut-key-list">
+            <dt><kbd>Ctrl + , / Command + ,</kbd></dt><dd>設定画面を開く</dd>
             <dt><kbd>Ctrl + - / Command + -</kbd></dt><dd>画面全体を縮小（10%ずつ、最小50%）</dd>
             <dt><kbd>Ctrl + Shift + - / Command + Shift + -</kbd></dt><dd>画面全体を拡大（10%ずつ、最大200%）</dd>
           </dl>
@@ -7198,6 +7199,12 @@ let screenZoomUpdate = Promise.resolve();
 const showScreenZoomNotice = createScreenZoomNotice(mustElement<HTMLElement>('#screen-zoom-toast'));
 
 document.addEventListener('keydown', async (event) => {
+  if (event.key === ',' && (event.ctrlKey || event.metaKey)
+    && !event.altKey && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    if (settingsDialog.hidden) openSettings();
+    return;
+  }
   const zoomDirection = screenZoomDirection(event);
   if (zoomDirection !== 0) {
     event.preventDefault();
