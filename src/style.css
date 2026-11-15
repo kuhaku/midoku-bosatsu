@@ -251,32 +251,23 @@ button, input, select, textarea { font: inherit; }
   background: transparent;
 }
 
-.bbs-timeline-menu {
-  position: absolute;
-  z-index: 1000;
-  top: 0;
-  left: calc(100% + 8px);
-  display: grid;
-  min-width: 220px;
-  max-width: min(360px, calc(100vw - 230px));
-  padding: 6px;
-  border: 1px solid var(--color-button-border);
-  border-radius: 8px;
-  background: var(--color-panel-strong);
-  box-shadow: 0 8px 26px var(--color-shadow);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-8px);
-  visibility: hidden;
-  transition: opacity .12s ease-out, transform .12s ease-out, visibility .12s ease-out;
+#bbs-timeline-switcher-button::after {
+  content: "▸";
+  margin-inline-start: .4em;
 }
 
-.bbs-timeline-switcher:hover .bbs-timeline-menu,
-.bbs-timeline-switcher:focus-within .bbs-timeline-menu {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-  visibility: visible;
+#bbs-timeline-switcher-button[aria-expanded="true"]::after {
+  content: "▾";
+}
+
+.bbs-timeline-menu {
+  display: grid;
+  min-width: 0;
+  padding-inline-start: 12px;
+}
+
+.bbs-timeline-menu[hidden] {
+  display: none;
 }
 
 .bbs-timeline-menu button {
@@ -285,7 +276,7 @@ button, input, select, textarea { font: inherit; }
   border: 0;
   border-radius: 5px;
   text-align: left;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .bbs-timeline-menu button.is-selected {
@@ -1460,11 +1451,6 @@ button:disabled { cursor: default; opacity: .45; }
     padding-inline: 4px;
   }
   .bbs-timeline-menu button { width: 100%; }
-  .bbs-timeline-menu {
-    top: calc(100% + 6px);
-    left: 0;
-    max-width: min(360px, calc(100vw - 24px));
-  }
   .fixed-status-main { gap: 12px; }
 }
 

@@ -435,8 +435,8 @@ app.innerHTML = `
         <button id="keyword-notification-button" type="button" disabled>キーワード通知</button>
         <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
         <div class="bbs-timeline-switcher">
-          <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
-          <div id="bbs-timeline-menu" class="bbs-timeline-menu" role="menu" aria-label="表示するBBSを選択"></div>
+          <button id="bbs-timeline-switcher-button" type="button" aria-expanded="false" aria-controls="bbs-timeline-menu">BBS表示切替</button>
+          <div id="bbs-timeline-menu" class="bbs-timeline-menu" hidden role="menu" aria-label="表示するBBSを選択"></div>
         </div>
         <button id="new-post-button" type="button" disabled>新規投稿</button>
         <button id="settings-button" type="button" disabled>設定</button>
@@ -1254,6 +1254,7 @@ const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
 const timelineNavigationToggle = mustElement<HTMLButtonElement>('#timeline-navigation-toggle');
 const mobileTimelineNavigationToggle = mustElement<HTMLButtonElement>('#mobile-timeline-navigation-toggle');
+const bbsTimelineSwitcherButton = mustElement<HTMLButtonElement>('#bbs-timeline-switcher-button');
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
@@ -6937,6 +6938,11 @@ reloadButton.addEventListener('click', () => {
 
 unreadJumpButton.addEventListener('click', () => {
   jumpToUnreadBoundary();
+});
+
+bbsTimelineSwitcherButton.addEventListener('click', () => {
+  bbsTimelineMenu.hidden = !bbsTimelineMenu.hidden;
+  bbsTimelineSwitcherButton.setAttribute('aria-expanded', String(!bbsTimelineMenu.hidden));
 });
 
 timelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
