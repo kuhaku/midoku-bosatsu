@@ -2,7 +2,7 @@ export type PostFormUserField = 'author' | 'email' | 'subject' | 'body' | 'url';
 export type PostFormFieldGroup = 'author-row' | 'email-row' | 'subject-actions' | 'main';
 export type PostFormLabelLayout = 'inline' | 'stacked';
 export type PostFormFieldWidth = 'compact' | 'fluid';
-export type PostFormFieldItem = 'encoding-warning' | 'field';
+export type PostFormFieldItem = 'encoding-warning' | 'field' | 'body-actions';
 
 export function postFormFieldGroup(userField: PostFormUserField): PostFormFieldGroup {
   if (userField === 'author') return 'author-row';
@@ -20,5 +20,5 @@ export function postFormFieldWidth(userField: PostFormUserField): PostFormFieldW
 }
 
 export function postFormFieldItemOrder(userField: PostFormUserField): PostFormFieldItem[] {
-  return userField === 'body' ? ['encoding-warning', 'field'] : ['field'];
+  return userField === 'body' ? ['encoding-warning', 'field', 'body-actions'] : ['field'];
 }

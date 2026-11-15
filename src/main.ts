@@ -1,4 +1,5 @@
 import type { KeywordTargets } from './keyword_notification.ts';
+import { removeOneUrlParameter } from './post_url_parameters.ts';
 import { createKeywordNotificationView } from './keyword_notification_view.ts';
 import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
@@ -3962,6 +3963,10 @@ function buildPostForm(
   encodingWarning.setAttribute('role', 'status');
   encodingWarning.setAttribute('aria-live', 'polite');
   encodingWarning.hidden = true;
+  const bodyActions = document.createElement('div');
+  bodyActions.className = 'bbs-follow-post-actions';
+  const removeUrlParameterButton = document.createElement('button');
+  bodyActions.append(removeUrlParameterButton);
   const elements = new Map<string, PostFormControlElement>();
   for (const control of postForm.controls) {
     const userField = control.user_field;
@@ -3977,7 +3982,7 @@ function buildPostForm(
       subjectActionRow.append(field);
     } else {
       for (const item of postFormFieldItemOrder(userField)) {
-        fields.append(item === 'encoding-warning' ? encodingWarning : field);
+        fields.append(item === 'encoding-warning' ? encodingWarning : item === 'body-actions' ? bodyActions : field);
       }
     }
   }
@@ -4022,6 +4027,26 @@ function buildPostForm(
       bodyElement ??= element;
     }
     refreshEncodingWarning();
+    bodyElement?.focus();
+  });
+
+  removeUrlParameterButton.type = 'button';
+  removeUrlParameterButton.className = 'bbs-follow-post-remove-url-parameter';
+  removeUrlParameterButton.textContent = 'URLパラメータを1つ削除';
+  removeUrlParameterButton.title = '引用行以外の各URLから末尾のクエリパラメータを1つ削除';
+  removeUrlParameterButton.addEventListener('click', () => {
+    let bodyElement: PostFormControlElement | null = null;
+    for (const control of postForm.controls) {
+      if (control.user_field !== 'body') continue;
+      const element = elements.get(control.id);
+      if (!element) continue;
+      const updated = removeOneUrlParameter(element.value);
+      if (updated !== element.value) {
+        element.value = updated;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      bodyElement ??= element;
+    }
     bodyElement?.focus();
   });
 
