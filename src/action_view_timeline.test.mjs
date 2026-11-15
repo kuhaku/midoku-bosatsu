@@ -11,6 +11,7 @@ function setup() {
   const state = {
     postsByKey: new Map(),
     pendingReplyArchivePosts: new Map(),
+    pendingKeywordPosts: new Map(),
     replyArchive: { posts: [], deleted: [] },
     replyNotificationUiState: { automatic: [], manual: [] },
     addArchivedReplies, readArchivedReplies, repliesToOwnPosts,

@@ -1,3 +1,5 @@
+import type { KeywordTargets } from './keyword_notification.ts';
+import { createKeywordNotificationView } from './keyword_notification_view.ts';
 import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
@@ -430,6 +432,7 @@ app.innerHTML = `
       <nav id="timeline-navigation" class="timeline-navigation" aria-label="投稿タイムラインの操作">
         <button id="reload-button" class="primary-button" type="button">未読リロード</button>
         <button id="reply-list-button" type="button">レス一覧</button>
+        <button id="keyword-notification-button" type="button" disabled>キーワード通知</button>
         <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
         <div class="bbs-timeline-switcher">
           <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
@@ -822,19 +825,11 @@ app.innerHTML = `
             <summary class="settings-section-heading">
               <div>
                 <h3>ハイライト</h3>
-                <p class="settings-section-description">正規表現に一致した文字列を強調表示します。1行ごとに別のパターンを書けます。改行は <code>|</code> と同じOR条件として扱います。</p>
+                <p class="settings-section-description">キーワード検索ルールに一致した文字列の表示色を設定します。</p>
               </div>
             </summary>
-            <div class="settings-grid ng-word-settings-grid">
-              <label class="settings-span-2">ハンドル（投稿者・題名）
-                <textarea id="general-highlight-handle-patterns" rows="6" spellcheck="false" placeholder="注目ユーザー&#10;重要|速報"></textarea>
-                <small>投稿者名・題名を対象にします。メールアドレス欄はハイライト対象に含めません。</small>
-              </label>
-              <label class="settings-span-2">本文
-                <textarea id="general-highlight-body-patterns" rows="6" spellcheck="false" placeholder="重要語&#10;https?://example\.com/&#10;緊急.*告知"></textarea>
-                <small>本文中で一致した文字列だけをハイライトします。空欄ならハイライトしません。</small>
-              </label>
-            </div>
+            <p class="settings-section-description">検索ルールはキーワード通知画面で管理できます。</p>
+            <button id="general-keyword-rules-button" type="button">キーワード通知でルールを管理</button>
             <div class="settings-grid highlight-style-settings-grid">
               <label>ハイライト文字色
                 <span class="highlight-color-controls">
@@ -1406,8 +1401,6 @@ const generalReplyNotificationChooseSoundButton = mustElement<HTMLButtonElement>
 const generalReplyNotificationResetSoundButton = mustElement<HTMLButtonElement>('#general-reply-notification-reset-sound');
 const generalNgHandlePatternsInput = mustElement<HTMLTextAreaElement>('#general-ng-handle-patterns');
 const generalNgBodyPatternsInput = mustElement<HTMLTextAreaElement>('#general-ng-body-patterns');
-const generalHighlightHandlePatternsInput = mustElement<HTMLTextAreaElement>('#general-highlight-handle-patterns');
-const generalHighlightBodyPatternsInput = mustElement<HTMLTextAreaElement>('#general-highlight-body-patterns');
 const generalHighlightTextColorPicker = mustElement<HTMLInputElement>('#general-highlight-text-color-picker');
 const generalHighlightTextColorInput = mustElement<HTMLInputElement>('#general-highlight-text-color');
 const generalHighlightBackgroundColorPicker = mustElement<HTMLInputElement>('#general-highlight-background-color-picker');
@@ -1561,6 +1554,7 @@ let textSearchHistoryIndex = -1;
 let currentPostKey: string | null = null;
 const isMacKeyboard = /Mac|iPhone|iPad|iPod/i.test(navigator.platform) || /Macintosh|Mac OS X/i.test(navigator.userAgent);
 const postsByKey = new Map<string, ParsedPost>();
+const pendingKeywordPosts = new Map<string, ParsedPost>();
 let savedPosts: SavedPost<ParsedPost>[] = [];
 let replyArchive: ReplyArchive<ParsedPost> = { posts: [], deleted: [] };
 let replyArchiveLoadFailed = false;
@@ -1579,8 +1573,6 @@ type SettingsTab = 'general' | 'bbs' | 'config-file' | 'reset' | 'version';
 let activeSettingsTab: SettingsTab = 'general';
 let ngHandleRegex: RegExp | null = null;
 let ngBodyRegex: RegExp | null = null;
-let highlightHandleRegex: RegExp | null = null;
-let highlightBodyRegex: RegExp | null = null;
 const MIN_UNREAD_RELOAD_INTERVAL_SECONDS = 30;
 let lastBbsRequestStartedAtMs = 0;
 let lastBbsDataFetchedAtMs: number | null = null;
@@ -1843,10 +1835,6 @@ function compileNgPattern(raw: string): RegExp | null {
   return compilePattern(raw, false);
 }
 
-function compileHighlightPattern(raw: string): RegExp | null {
-  return compilePattern(raw, true);
-}
-
 function refreshNgWordRegex(globalConfig: GlobalConfig): void {
   try {
     ngHandleRegex = compileNgPattern(globalConfig.ng_handle_patterns ?? '');
@@ -1860,71 +1848,32 @@ function refreshNgWordRegex(globalConfig: GlobalConfig): void {
   }
 }
 
-function refreshHighlightRegex(globalConfig: GlobalConfig): void {
-  try {
-    highlightHandleRegex = compileHighlightPattern(globalConfig.highlight_handle_patterns ?? '');
-  } catch {
-    highlightHandleRegex = null;
+function appendHighlightedText(text: string, target: Node, field: keyof KeywordTargets): void {
+  const ranges = keywordNotifications.highlightRanges(field, text);
+  let offset = 0;
+  for (const range of ranges) {
+    target.appendChild(document.createTextNode(text.slice(offset, range.start)));
+    const mark = document.createElement('span');
+    mark.className = 'post-highlight';
+    mark.textContent = text.slice(range.start, range.end);
+    target.appendChild(mark);
+    offset = range.end;
   }
-  try {
-    highlightBodyRegex = compileHighlightPattern(globalConfig.highlight_body_patterns ?? '');
-  } catch {
-    highlightBodyRegex = null;
-  }
+  target.appendChild(document.createTextNode(text.slice(offset)));
 }
 
-function regexMatchesText(regex: RegExp | null, text: string): boolean {
-  if (!regex || !text) return false;
-  regex.lastIndex = 0;
-  const matched = regex.test(text);
-  regex.lastIndex = 0;
-  return matched;
-}
-
-function appendHighlightedText(text: string, target: Node, regex: RegExp | null): void {
-  if (!regex || !text) {
-    target.appendChild(document.createTextNode(text));
-    return;
-  }
-
-
-  const matcher = new RegExp(regex.source, regex.flags);
-  let lastIndex = 0;
-  let hasMatch = false;
-  for (const match of text.matchAll(matcher)) {
-    const start = match.index ?? 0;
-    const matchedText = match[0];
-    if (start > lastIndex) target.appendChild(document.createTextNode(text.slice(lastIndex, start)));
-    if (matchedText.length > 0) {
-      const mark = document.createElement('span');
-      mark.className = 'post-highlight';
-      mark.textContent = matchedText;
-      target.appendChild(mark);
-      hasMatch = true;
-    }
-    lastIndex = start + matchedText.length;
-  }
-  if (!hasMatch) {
-    target.appendChild(document.createTextNode(text));
-    return;
-  }
-  if (lastIndex < text.length) target.appendChild(document.createTextNode(text.slice(lastIndex)));
-}
-
-function applyHighlightToTextNodes(root: HTMLElement, regex: RegExp | null): void {
-  if (!regex) return;
+function applyHighlightToTextNodes(root: HTMLElement): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) {
     if (walker.currentNode instanceof Text) nodes.push(walker.currentNode);
   }
-
   for (const node of nodes) {
     const parent = node.parentElement;
     if (!parent || parent.closest('.image-detail-link, .post-highlight')) continue;
-    if (!regexMatchesText(regex, node.data)) continue;
+    if (!keywordNotifications.highlightRanges('body', node.data).length) continue;
     const fragment = document.createDocumentFragment();
-    appendHighlightedText(node.data, fragment, regex);
+    appendHighlightedText(node.data, fragment, 'body');
     node.replaceWith(fragment);
   }
 }
@@ -1949,6 +1898,7 @@ function mergePosts(posts: ParsedPost[], markRead = false): void {
     const mergedPost = timelineRead ? { ...post, timeline_read: true } : post;
     postsByKey.set(key, mergedPost);
     pendingReplyArchivePosts.set(key, mergedPost);
+    pendingKeywordPosts.set(key, mergedPost);
     if (timelineRead) forcedUnreadPostKeys.delete(key);
   }
 
@@ -2180,6 +2130,7 @@ function isAtAppTop(): boolean {
  * 起動直後に最上部にいるだけでは既読化しない。
  */
 function handleReadOnTopScroll(): void {
+  if (keywordNotifications.isOpen()) return;
   const atTop = isAtAppTop();
 
   if (!atTop) {
@@ -2830,7 +2781,7 @@ function buildSafePostBody(
   }
 
   if (compactTreeQuotes) compactTreeQuotedArea(body, parentBodyText);
-  applyHighlightToTextNodes(body, highlightBodyRegex);
+  applyHighlightToTextNodes(body);
   appendFxTwitterPreviews(body);
   appendYouTubePreviews(body);
   appendTwitterCardPreviews(body);
@@ -3278,7 +3229,8 @@ function openPostContextMenu(event: MouseEvent): void {
   const post = postsByKey.get(key)
     ?? bbsActionViewPosts.find((candidate) => postKey(candidate) === key)
     ?? savedPosts.find((candidate) => postKey(candidate) === key)
-    ?? replyArchive.posts.find((candidate) => postKey(candidate) === key);
+    ?? replyArchive.posts.find((candidate) => postKey(candidate) === key)
+    ?? keywordNotifications.findPost(key);
   if (!post) return;
 
   const entries = postContextMenuEntries({
@@ -3635,14 +3587,14 @@ function buildActionViewPost(post: ParsedPost, depth = 0): HTMLElement {
   if (normalizedTitle) {
     const title = document.createElement('span');
     title.className = 'post-subject';
-    appendHighlightedText(normalizedTitle, title, highlightHandleRegex);
+    appendHighlightedText(normalizedTitle, title, 'title');
     primary.append(title);
   }
 
   if (post.name.trim()) {
     const name = document.createElement('span');
     name.className = 'post-name';
-    appendHighlightedText(post.name.trim(), name, highlightHandleRegex);
+    appendHighlightedText(post.name.trim(), name, 'name');
     primary.append(name);
   }
 
@@ -3838,6 +3790,7 @@ function openSavedPostsView(): void {
 }
 
 function openPostListView(): void {
+  keywordNotifications.close();
   const title = postListViewMode === 'replies' ? 'レス一覧' : '保存済み投稿';
   mustElement<HTMLElement>('#saved-posts-view-title').textContent = title;
   savedPostsViewCloseButton.setAttribute('aria-label', `${title}を閉じる`);
@@ -3860,6 +3813,7 @@ function closeSavedPostsView(): void {
 }
 
 function openShortcutKeyListView(): void {
+  keywordNotifications.close();
   closeBbsActionView();
   closeSavedPostsView();
   closeTextSearch();
@@ -4458,6 +4412,7 @@ function moveCurrentPost(delta: -1 | 1): void {
 }
 
 function moveToNextUnreadPost(): void {
+  if (keywordNotifications.isOpen()) return;
   if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden || !bbsActionView.hidden) return;
 
   const unreadPosts = sortedPosts()
@@ -4769,7 +4724,7 @@ function buildTreeNodeArticle(
   if (treeTitle) {
     const title = document.createElement('span');
     title.className = 'post-subject tree-post-subject';
-    appendHighlightedText(treeTitle, title, highlightHandleRegex);
+    appendHighlightedText(treeTitle, title, 'title');
     firstLine.append(title, document.createTextNode(' '));
   }
 
@@ -4777,7 +4732,7 @@ function buildTreeNodeArticle(
   if (treeAuthor) {
     const name = document.createElement('span');
     name.className = 'post-name tree-post-name';
-    appendHighlightedText(treeAuthor, name, highlightHandleRegex);
+    appendHighlightedText(treeAuthor, name, 'name');
     firstLine.append(name, document.createTextNode(' '));
   }
 
@@ -5051,7 +5006,7 @@ function renderPosts(): void {
       if (normalizedTitle) {
         const title = document.createElement('span');
         title.className = 'post-subject';
-        appendHighlightedText(normalizedTitle, title, highlightHandleRegex);
+        appendHighlightedText(normalizedTitle, title, 'title');
         primaryMeta.append(title);
       }
 
@@ -5059,7 +5014,7 @@ function renderPosts(): void {
       if (normalizedName) {
         const name = document.createElement('span');
         name.className = 'post-name';
-        appendHighlightedText(normalizedName, name, highlightHandleRegex);
+        appendHighlightedText(normalizedName, name, 'name');
         primaryMeta.append(name);
       }
 
@@ -5098,6 +5053,8 @@ function renderPosts(): void {
   updateUnreadControls(posts);
   renderReplyNotificationBanner();
   updateReplyList();
+  keywordNotifications.sync([...postsByKey.values(), ...pendingKeywordPosts.values()]);
+  pendingKeywordPosts.clear();
 
   if (posts.length === 0) {
     noticeElement.hidden = false;
@@ -5131,7 +5088,7 @@ function applyDisplayConfig(globalConfig: GlobalConfig): void {
   root.setProperty('--fxtwitter-video-thumbnail-size-px', `${globalConfig.fxtwitter_video_thumbnail_size_px}px`);
   root.setProperty('--youtube-video-thumbnail-size-px', `${globalConfig.youtube_video_thumbnail_size_px}px`);
   refreshNgWordRegex(globalConfig);
-  refreshHighlightRegex(globalConfig);
+  keywordNotifications.migrateHighlights(globalConfig.highlight_handle_patterns ?? '', globalConfig.highlight_body_patterns ?? '');
   const enabled = globalConfig.post_saving_enabled ?? true;
   savedPostsButton.hidden = !enabled;
   if (!enabled && !savedPostsView.hidden && postListViewMode === 'saved') closeSavedPostsView();
@@ -5209,6 +5166,7 @@ function switchSettingsTab(tab: SettingsTab): void {
 }
 
 function showSettingsDialog(tab: SettingsTab = 'general'): void {
+  keywordNotifications.close();
   switchSettingsTab(tab);
   settingsDialog.hidden = false;
   settingsDialog.classList.remove('is-closed');
@@ -5475,8 +5433,6 @@ function renderGeneralSettingsForm(): void {
   if (HEX_COLOR_RE.test(generalDraftStyle.current_post_border_color)) generalCurrentPostBorderColorPicker.value = generalDraftStyle.current_post_border_color;
   generalNgHandlePatternsInput.value = generalDraftGlobal.ng_handle_patterns ?? '';
   generalNgBodyPatternsInput.value = generalDraftGlobal.ng_body_patterns ?? '';
-  generalHighlightHandlePatternsInput.value = generalDraftGlobal.highlight_handle_patterns ?? '';
-  generalHighlightBodyPatternsInput.value = generalDraftGlobal.highlight_body_patterns ?? '';
   generalHighlightTextColorInput.value = generalDraftStyle.highlight_text_color.toLowerCase();
   if (HEX_COLOR_RE.test(generalDraftStyle.highlight_text_color)) generalHighlightTextColorPicker.value = generalDraftStyle.highlight_text_color;
   generalHighlightBackgroundColorInput.value = generalDraftStyle.highlight_background_color.toLowerCase();
@@ -5562,8 +5518,6 @@ function commitGeneralSettingsForm(): void {
   generalDraftStyle.current_post_border_color = generalCurrentPostBorderColorInput.value.trim().toLowerCase();
   generalDraftGlobal.ng_handle_patterns = generalNgHandlePatternsInput.value;
   generalDraftGlobal.ng_body_patterns = generalNgBodyPatternsInput.value;
-  generalDraftGlobal.highlight_handle_patterns = generalHighlightHandlePatternsInput.value;
-  generalDraftGlobal.highlight_body_patterns = generalHighlightBodyPatternsInput.value;
   generalDraftStyle.highlight_text_color = generalHighlightTextColorInput.value.trim().toLowerCase();
   generalDraftStyle.highlight_background_color = generalHighlightBackgroundColorInput.value.trim().toLowerCase();
 }
@@ -5696,10 +5650,6 @@ function validateGeneralSettings(): string | null {
   if (handleNgError) return handleNgError;
   const bodyNgError = validateNgPatterns('本文NGワード', generalDraftGlobal.ng_body_patterns ?? '');
   if (bodyNgError) return bodyNgError;
-  const handleHighlightError = validateNgPatterns('ハンドルのハイライト', generalDraftGlobal.highlight_handle_patterns ?? '');
-  if (handleHighlightError) return handleHighlightError;
-  const bodyHighlightError = validateNgPatterns('本文のハイライト', generalDraftGlobal.highlight_body_patterns ?? '');
-  if (bodyHighlightError) return bodyHighlightError;
   if (!HEX_COLOR_RE.test(generalDraftStyle.highlight_text_color)) return 'ハイライト文字色は #RRGGBB 形式で指定してください。';
   if (!HEX_COLOR_RE.test(generalDraftStyle.highlight_background_color)) return 'ハイライト背景色は #RRGGBB 形式で指定してください。';
   if (!HEX_COLOR_RE.test(generalDraftStyle.current_post_border_color)) return '現在の投稿の枠色は #RRGGBB 形式で指定してください。';
@@ -6632,6 +6582,8 @@ async function bootstrap(): Promise<void> {
       replyArchiveLoadFailed = true;
       setFooterError(`レス一覧を読み込めませんでした: ${String(error)}`);
     }
+    keywordNotifications.load();
+    keywordNotifications.migrateHighlights(loadedConfig.global.highlight_handle_patterns ?? '', loadedConfig.global.highlight_body_patterns ?? '');
     loadPostLog();
     loadSavedPosts();
     await refreshHiddenThreadKeys();
@@ -6802,6 +6754,50 @@ function handlePostContentCopy(event: ClipboardEvent): void {
   event.clipboardData.setData('text/html', container.innerHTML);
   event.preventDefault();
 }
+
+const keywordNotifications = createKeywordNotificationView<ParsedPost>({
+  button: mustElement<HTMLButtonElement>('#keyword-notification-button'),
+  getPosts: visibleNewestFirstPosts,
+  visiblePosts: posts => filterHiddenThreadPosts(posts, hiddenThreadKeys).filter(post => !isNgPost(post)),
+  isUnread: post => isPostUnread(postsByKey.get(postKey(post)) ?? pendingKeywordPosts.get(postKey(post)) ?? post),
+  renderPost: post => {
+    const article = buildActionViewPost(post);
+    const site = document.createElement('span');
+    site.className = `site-badge ${bbsBadgeClassName(post.site_id)}`;
+    site.textContent = siteNames.get(post.site_id) ?? post.site_id;
+    article.querySelector('.post-meta-primary')?.append(site);
+    return article;
+  },
+  comparePosts: compareNewestFirst,
+  rulesChanged: () => renderPosts(),
+  markRead: posts => {
+    for (const post of posts) {
+      const live = postsByKey.get(postKey(post));
+      if (live) postsByKey.set(postKey(post), { ...live, timeline_read: true });
+      forcedUnreadPostKeys.delete(postKey(post));
+    }
+    const next = readArchivedReplies(replyArchive, posts);
+    if (next !== replyArchive) persistReplyArchive(next);
+    persistPostLog();
+    renderPosts();
+  },
+  beforeOpen: () => {
+    closeSavedPostsView();
+    closeBbsActionView();
+    closeShortcutKeyListView(false);
+    closeTextSearch();
+  },
+  clearPreviews: clearObservedTwitterCardPreviews,
+  reportError: setFooterError,
+});
+mustElement<HTMLButtonElement>('#general-keyword-rules-button').addEventListener('click', () => {
+  closeSettingsDialog();
+  if (settingsDialog.hidden) keywordNotifications.open();
+});
+keywordNotifications.content.addEventListener('click', handlePostContentClick);
+keywordNotifications.content.addEventListener('contextmenu', openPostContextMenu);
+keywordNotifications.content.addEventListener('mouseover', handleImageThumbnailMouseOver);
+keywordNotifications.content.addEventListener('mouseout', handleImageThumbnailMouseOut);
 
 postsElement.addEventListener('click', handlePostContentClick);
 bbsParticipantCounts.addEventListener('click', handlePostContentClick);
@@ -7220,6 +7216,14 @@ document.addEventListener('keydown', async (event) => {
   if (event.key === 'Escape' && !postContextMenu.hidden) {
     event.preventDefault();
     closePostContextMenu();
+    return;
+  }
+  if (keywordNotifications.isOpen() && bbsActionView.hidden && settingsDialog.hidden) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      keywordNotifications.close(true);
+    }
+    // 編集中のキー入力や一覧操作を背後のタイムラインへ渡さない。
     return;
   }
   if (isTextSearchShortcut(event) && shortcutKeyListView.hidden) {
