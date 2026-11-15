@@ -77,8 +77,6 @@ pub struct GlobalConfig {
     pub reply_notification_sound_custom_name: String,
     #[serde(default)]
     pub reply_notification_include_descendants: bool,
-    #[serde(default)]
-    pub confirm_post_close_on_escape: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1068,6 +1066,20 @@ pub fn find_site<'a>(config: &'a ReaderConfig, site_id: &str) -> Result<&'a Site
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_post_close_setting_is_ignored_and_not_saved() {
+        let source = r#"
+[global]
+poll_interval_seconds = 90
+max_posts = 666
+post_order = "newest_first"
+confirm_post_close_on_escape = true
+"#;
+        let config: GlobalFileConfig = toml::from_str(source).expect("legacy config should parse");
+        let saved = toml::to_string(&config).expect("config should serialize");
+        assert!(!saved.contains("confirm_post_close_on_escape"));
+    }
 
     #[test]
     fn import_kind_rejects_unknown_files() {
