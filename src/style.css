@@ -255,9 +255,11 @@ button, input, select, textarea { font: inherit; }
 }
 #bookmark-toggle::after { content: "▸"; margin-inline-start: .4em; }
 #bookmark-toggle[aria-expanded="true"]::after { content: "▾"; }
-.bookmark-menu { padding-inline-start: 12px; max-height: 50vh; overflow-y: auto; background: var(--color-bg); }
+.bookmark-menu { padding-inline-start: calc(14px + 1.65em); max-height: 50vh; overflow-y: auto; background: var(--color-bg); }
 .bookmark-menu[hidden] { display: none; }
 .bookmark-menu button { border: 0; background: transparent; padding: 7px 10px; overflow-wrap: anywhere; }
+.timeline-navigation .bookmark-menu .bookmark-link,
+.timeline-navigation .bookmark-menu .bookmark-add { padding-inline-start: 0; }
 .bookmark-items { display: grid; gap: 3px; }
 .bookmark-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .bookmark-link { min-width: 0; }
