@@ -1,3 +1,4 @@
+mod bookmarks;
 mod config;
 mod fetcher;
 mod model;
@@ -59,6 +60,16 @@ fn get_post_form_encoding_warning(
 #[tauri::command]
 fn get_reader_config(app: AppHandle) -> Result<ReaderConfig, String> {
     config::load_reader_config(&app)
+}
+
+#[tauri::command]
+fn load_bookmarks(app: AppHandle) -> Result<Option<Vec<bookmarks::Bookmark>>, String> {
+    config::load_bookmarks(&app)
+}
+
+#[tauri::command]
+fn save_bookmarks(app: AppHandle, bookmarks: Vec<bookmarks::Bookmark>) -> Result<(), String> {
+    config::save_bookmarks(&app, bookmarks)
 }
 
 #[tauri::command]
@@ -502,6 +513,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            load_bookmarks,
+            save_bookmarks,
             get_reader_config,
             get_post_form_encoding_warning,
             export_config_file,

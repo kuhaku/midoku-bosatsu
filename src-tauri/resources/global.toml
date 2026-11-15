@@ -4,6 +4,10 @@
 
 config_version = 6
 
+[[bookmarks]]
+title = "未読菩薩"
+url = "https://github.com/kuhaku/midoku-bosatsu"
+
 [global]
 # BBSへの過剰な負荷を避けるため30秒以上を推奨。実行時も最低30秒に制限する。
 poll_interval_seconds = 90

@@ -84,6 +84,8 @@ struct GlobalFileConfig {
     #[serde(default = "default_config_version")]
     config_version: u32,
     global: GlobalConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bookmarks: Option<Vec<crate::bookmarks::Bookmark>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -345,7 +347,11 @@ pub(crate) fn validate_import_source(file_name: &str, source: &str) -> Result<()
         GLOBAL_FILE => {
             let file: GlobalFileConfig = toml::from_str(source)
                 .map_err(|e| format!("global.toml のTOML解析に失敗しました: {e}"))?;
-            validate_global_config(&file.global)
+            validate_global_config(&file.global)?;
+            if let Some(entries) = file.bookmarks {
+                crate::bookmarks::validate(&entries)?;
+            }
+            Ok(())
         }
         BBS_FILE => {
             let file: BbsFileConfig = toml::from_str(source)
@@ -573,6 +579,7 @@ fn ensure_user_config_paths(app: &AppHandle) -> Result<ConfigPaths, String> {
     copy_bundled_if_missing(app, BBS_FILE, &bbs_path)?;
     copy_bundled_if_missing(app, STYLE_FILE, &style_path)?;
     migrate_global_if_needed(app, &global_path)?;
+    crate::bookmarks::ensure_defaults(&global_path)?;
     migrate_bbs_if_needed(app, &bbs_path)?;
 
     Ok(ConfigPaths {
@@ -781,11 +788,25 @@ pub fn save_global_config(app: &AppHandle, global: GlobalConfig) -> Result<(), S
     let next = GlobalFileConfig {
         config_version,
         global,
+        bookmarks: crate::bookmarks::load(&paths.global)?,
     };
     let serialized = toml::to_string_pretty(&next)
         .map_err(|e| format!("global.toml のTOML出力に失敗しました: {e}"))?;
     fs::write(&paths.global, serialized)
         .map_err(|e| format!("{} の更新に失敗しました: {e}", paths.global.display()))
+}
+
+pub fn load_bookmarks(app: &AppHandle) -> Result<Option<Vec<crate::bookmarks::Bookmark>>, String> {
+    let paths = ensure_user_config_paths(app)?;
+    crate::bookmarks::load(&paths.global)
+}
+
+pub fn save_bookmarks(
+    app: &AppHandle,
+    entries: Vec<crate::bookmarks::Bookmark>,
+) -> Result<(), String> {
+    let paths = ensure_user_config_paths(app)?;
+    crate::bookmarks::save(&paths.global, entries)
 }
 
 fn css_var(source: &str, name: &str) -> Option<String> {
@@ -1133,6 +1154,23 @@ post_order = "newest_first"
         assert!(!config.global.hide_thread_hide_link);
         assert!(config.global.post_saving_enabled);
         assert!(config.global.show_participant_counts);
+    }
+
+    #[test]
+    fn global_config_preserves_default_bookmark_when_serialized() {
+        let mut config: GlobalFileConfig =
+            toml::from_str(include_str!("../resources/global.toml")).unwrap();
+        config.global.max_posts = 123;
+        let value: toml::Value = toml::from_str(&toml::to_string_pretty(&config).unwrap()).unwrap();
+        assert_eq!(value["bookmarks"][0]["title"].as_str(), Some("未読菩薩"));
+        assert_eq!(
+            value["bookmarks"][0]["url"].as_str(),
+            Some("https://github.com/kuhaku/midoku-bosatsu")
+        );
+        config.bookmarks = Some(vec![]);
+        let restored: GlobalFileConfig =
+            toml::from_str(&toml::to_string_pretty(&config).unwrap()).unwrap();
+        assert_eq!(restored.bookmarks, Some(vec![]));
     }
 
     #[test]

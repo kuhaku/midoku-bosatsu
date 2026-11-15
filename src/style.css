@@ -188,6 +188,7 @@ button, input, select, textarea { font: inherit; }
 
 /* Decorative navigation icons survive textContent updates (such as unread counts). */
 .timeline-navigation > button::before,
+.bookmark-navigation > button::before,
 .bbs-timeline-switcher > button::before {
   content: "";
   display: inline-block;
@@ -245,6 +246,42 @@ button, input, select, textarea { font: inherit; }
 .bbs-timeline-switcher {
   position: relative;
 }
+
+.bookmark-navigation { position: relative; min-width: 0; }
+#bookmark-toggle {
+  border: 0;
+  background: transparent;
+  --navigation-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12v18l-6-4-6 4z'/%3E%3C/svg%3E");
+}
+#bookmark-toggle::after { content: "▸"; margin-inline-start: .4em; }
+#bookmark-toggle[aria-expanded="true"]::after { content: "▾"; }
+.bookmark-menu { padding-inline-start: 12px; max-height: 50vh; overflow-y: auto; }
+.bookmark-menu[hidden] { display: none; }
+.bookmark-menu button { border: 0; background: transparent; padding: 7px 10px; overflow-wrap: anywhere; }
+.bookmark-items { display: grid; gap: 3px; }
+.bookmark-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.bookmark-link { min-width: 0; }
+.timeline-navigation .bookmark-item .bookmark-remove { width: auto; padding: 7px; text-align: center; }
+.bookmark-add { margin-block-start: 4px; }
+.bookmark-dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text);
+  background: var(--color-panel-strong);
+}
+.bookmark-dialog::backdrop { background: var(--color-dialog-backdrop); }
+.bookmark-dialog form, .bookmark-dialog label { display: grid; gap: 8px; }
+.bookmark-dialog form { gap: 16px; }
+.bookmark-dialog h2 { margin: 0; font-size: 20px; }
+.bookmark-dialog input { width: 100%; box-sizing: border-box; }
+.bookmark-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.timeline-navigation .bookmark-actions button { width: auto; text-align: center; }
+.bookmark-error { color: var(--color-error); margin: 0; }
 
 .bbs-timeline-switcher > button {
   border: 0;
@@ -1454,6 +1491,7 @@ button:disabled { cursor: default; opacity: .45; }
   }
   /* Keep button text accessible while showing only the bundled icons. */
   .timeline-navigation > button,
+  .bookmark-navigation > button,
   .bbs-timeline-switcher > button {
     min-width: 32px;
     min-height: 40px;
@@ -1461,12 +1499,25 @@ button:disabled { cursor: default; opacity: .45; }
     text-align: center;
   }
   .timeline-navigation > button::before,
+  .bookmark-navigation > button::before,
   .bbs-timeline-switcher > button::before {
     font-size: var(--system-font-size);
     margin-inline-end: 0;
     vertical-align: middle;
   }
   #bbs-timeline-switcher-button::after { display: none; }
+  #bookmark-toggle::after { display: none; }
+  .bookmark-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: min(260px, calc(100vw - 80px));
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: transparent;
+  }
+  .timeline-navigation .bookmark-menu button { width: 100%; }
   .bbs-timeline-menu button { width: 100%; }
   .fixed-status-main { gap: 12px; }
 }

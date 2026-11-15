@@ -9,6 +9,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { createScreenZoomNotice, nextScreenZoom, screenZoomDirection } from './screen_zoom.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { setupBookmarkNavigation } from './bookmark_navigation.ts';
 import { confirm as confirmDialog, open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
 import {
@@ -443,6 +444,7 @@ app.innerHTML = `
         <button id="new-post-button" type="button" disabled>新規投稿</button>
         <button id="settings-button" type="button" disabled>設定</button>
         <button id="shortcut-key-list-button" type="button">ショートカット</button>
+        <div id="bookmark-navigation" class="bookmark-navigation"></div>
       </nav>
 
       <div class="timeline-content">
@@ -5365,6 +5367,7 @@ async function importSettingsFile(fileName: 'global.toml' | 'bbs.toml'): Promise
       sourcePath,
     });
     if (fileName === 'global.toml') {
+      await bookmarkNavigation.reload();
       config = loadedConfig;
       generalDraftGlobal = structuredClone(loadedConfig.global);
       applyDisplayConfig(loadedConfig.global);
@@ -6590,6 +6593,7 @@ async function resetConfigToBundled(fileName: 'global.toml' | 'bbs.toml'): Promi
   try {
     const loadedConfig = await invoke<ReaderConfig>('reset_config_to_bundled', { fileName });
     if (fileName === 'global.toml') {
+      await bookmarkNavigation.reload();
       config = loadedConfig;
       generalDraftGlobal = structuredClone(loadedConfig.global);
       notificationSoundDraftPath = null;
@@ -7038,6 +7042,8 @@ bbsTimelineSwitcherButton.addEventListener('click', () => {
   bbsTimelineMenu.hidden = !bbsTimelineMenu.hidden;
   bbsTimelineSwitcherButton.setAttribute('aria-expanded', String(!bbsTimelineMenu.hidden));
 });
+
+const bookmarkNavigation = setupBookmarkNavigation(mustElement<HTMLElement>('#bookmark-navigation'), openUrl, setFooterError);
 
 timelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
 mobileTimelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
