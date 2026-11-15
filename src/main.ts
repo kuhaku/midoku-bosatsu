@@ -1,6 +1,7 @@
 import type { KeywordTargets } from './keyword_notification.ts';
 import { removeOneUrlParameter } from './post_url_parameters.ts';
 import { convertPostBodyToHalfwidth } from './post_halfwidth.ts';
+import { bindPostEmoticonButton } from './post_emoticon.ts';
 import { createKeywordNotificationView } from './keyword_notification_view.ts';
 import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
@@ -3968,7 +3969,6 @@ function buildPostForm(
   bodyActions.className = 'bbs-follow-post-actions';
   const removeUrlParameterButton = document.createElement('button');
   const halfwidthButton = document.createElement('button');
-  bodyActions.append(halfwidthButton, removeUrlParameterButton);
   const elements = new Map<string, PostFormControlElement>();
   for (const control of postForm.controls) {
     const userField = control.user_field;
@@ -4007,6 +4007,22 @@ function buildPostForm(
     bbsActionViewContent.dataset.postFormDirty = 'true';
     refreshEncodingWarning();
   });
+
+  const bodyControl = postForm.controls.find((control) => control.user_field === 'body');
+  const bodyElement = bodyControl ? elements.get(bodyControl.id) : undefined;
+  for (const emoticon of ['(;´Д`)', 'ヽ(´ー｀)ノ']) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = emoticon;
+    button.title = `${emoticon} を内容欄に挿入`;
+    if (bodyElement instanceof HTMLTextAreaElement || bodyElement instanceof HTMLInputElement) {
+      bindPostEmoticonButton(button, bodyElement, emoticon);
+    } else {
+      button.disabled = true;
+    }
+    bodyActions.append(button);
+  }
+  bodyActions.append(halfwidthButton, removeUrlParameterButton);
 
   const actions = document.createElement('div');
   actions.className = 'bbs-follow-post-actions';
