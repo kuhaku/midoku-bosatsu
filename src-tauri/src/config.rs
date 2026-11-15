@@ -54,6 +54,8 @@ pub struct GlobalConfig {
     #[serde(default = "default_true")]
     pub show_participant_counts: bool,
     #[serde(default)]
+    pub show_bbs_timeline_switcher: bool,
+    #[serde(default)]
     pub hide_tree_link: bool,
     #[serde(default)]
     pub hide_thread_hide_link: bool,
@@ -1171,6 +1173,39 @@ post_order = "newest_first"
         let restored: GlobalFileConfig =
             toml::from_str(&toml::to_string_pretty(&config).unwrap()).unwrap();
         assert_eq!(restored.bookmarks, Some(vec![]));
+    }
+
+    #[test]
+    fn bbs_timeline_switcher_defaults_hidden_and_preserves_saved_visibility() {
+        let bundled = include_str!("../resources/global.toml");
+        let mut source: toml::Value = toml::from_str(bundled).unwrap();
+        source["global"]
+            .as_table_mut()
+            .unwrap()
+            .remove("show_bbs_timeline_switcher");
+        for visible in [None, Some(true), Some(false)] {
+            if let Some(visible) = visible {
+                source["global"].as_table_mut().unwrap().insert(
+                    "show_bbs_timeline_switcher".into(),
+                    toml::Value::Boolean(visible),
+                );
+            }
+            let config: GlobalFileConfig =
+                toml::from_str(&toml::to_string(&source).unwrap()).unwrap();
+            let saved: toml::Value = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(
+                saved["global"]
+                    .get("show_bbs_timeline_switcher")
+                    .and_then(toml::Value::as_bool),
+                Some(visible.unwrap_or(false))
+            );
+        }
+        let config: GlobalFileConfig = toml::from_str(bundled).unwrap();
+        let saved: toml::Value = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+        assert_eq!(
+            saved["global"]["show_bbs_timeline_switcher"].as_bool(),
+            Some(false)
+        );
     }
 
     #[test]

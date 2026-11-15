@@ -147,6 +147,7 @@ type GlobalConfig = {
   tree_view_enabled: boolean;
   post_saving_enabled: boolean;
   show_participant_counts: boolean;
+  show_bbs_timeline_switcher: boolean;
   hide_tree_link: boolean;
   hide_thread_hide_link: boolean;
   expand_numeric_character_references: boolean;
@@ -437,7 +438,7 @@ app.innerHTML = `
         <button id="reply-list-button" type="button">レス一覧</button>
         <button id="keyword-notification-button" type="button" disabled>キーワード通知</button>
         <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
-        <div class="bbs-timeline-switcher">
+        <div id="bbs-timeline-switcher" class="bbs-timeline-switcher" hidden>
           <button id="bbs-timeline-switcher-button" type="button" aria-expanded="false" aria-controls="bbs-timeline-menu">BBS表示切替</button>
           <div id="bbs-timeline-menu" class="bbs-timeline-menu" hidden role="menu" aria-label="表示するBBSを選択"></div>
         </div>
@@ -658,6 +659,9 @@ app.innerHTML = `
               <label>投稿表示上限数
                 <input id="general-max-posts" type="number" min="1" max="100000" step="1">
                 <small>各BBSごとに保持する最大投稿数です。 (登録したBBSが 3 で、投稿表示上限数が 100 なら、最大で 3 * 100 = 300件の投稿を保持します)</small>
+              </label>
+              <label class="settings-check settings-check-card">
+                <input id="general-show-bbs-timeline-switcher" type="checkbox"> 左ナビに「BBS表示切替」を表示する
               </label>
               <label class="settings-check settings-check-card">
                 <input id="general-show-participant-counts" type="checkbox"> 現在の参加者を表示する
@@ -1254,6 +1258,7 @@ const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
 const timelineNavigationToggle = mustElement<HTMLButtonElement>('#timeline-navigation-toggle');
 const mobileTimelineNavigationToggle = mustElement<HTMLButtonElement>('#mobile-timeline-navigation-toggle');
+const bbsTimelineSwitcher = mustElement<HTMLDivElement>('#bbs-timeline-switcher');
 const bbsTimelineSwitcherButton = mustElement<HTMLButtonElement>('#bbs-timeline-switcher-button');
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
@@ -1370,6 +1375,7 @@ const treeColorFieldsElement = mustElement<HTMLDivElement>('#tree-color-fields')
 const generalPollIntervalInput = mustElement<HTMLInputElement>('#general-poll-interval');
 const generalPollIntervalWarning = mustElement<HTMLElement>('#general-poll-interval-warning');
 const generalMaxPostsInput = mustElement<HTMLInputElement>('#general-max-posts');
+const generalShowBbsTimelineSwitcherInput = mustElement<HTMLInputElement>('#general-show-bbs-timeline-switcher');
 const generalShowParticipantCountsInput = mustElement<HTMLInputElement>('#general-show-participant-counts');
 const generalPostSavingEnabledInput = mustElement<HTMLInputElement>('#general-post-saving-enabled');
 const generalTreeViewEnabledInput = mustElement<HTMLInputElement>('#general-tree-view-enabled');
@@ -5180,6 +5186,11 @@ function formatFetchTime(iso: string): string {
 }
 
 function applyDisplayConfig(globalConfig: GlobalConfig): void {
+  bbsTimelineSwitcher.hidden = !(globalConfig.show_bbs_timeline_switcher ?? false);
+  if (bbsTimelineSwitcher.hidden) {
+    bbsTimelineMenu.hidden = true;
+    bbsTimelineSwitcherButton.setAttribute('aria-expanded', 'false');
+  }
   const root = document.documentElement.style;
   root.setProperty('--reader-image-max-height', `${globalConfig.max_image_height_px}px`);
   root.setProperty('--reader-image-hover-max-width', `${globalConfig.image_hover_window_percent}vw`);
@@ -5502,6 +5513,7 @@ function renderGeneralSettingsForm(): void {
   generalPollIntervalInput.value = String(generalDraftGlobal.poll_interval_seconds);
   updatePollIntervalWarning();
   generalMaxPostsInput.value = String(generalDraftGlobal.max_posts);
+  generalShowBbsTimelineSwitcherInput.checked = generalDraftGlobal.show_bbs_timeline_switcher ?? false;
   generalShowParticipantCountsInput.checked = generalDraftGlobal.show_participant_counts ?? true;
   generalPostSavingEnabledInput.checked = generalDraftGlobal.post_saving_enabled ?? true;
   generalTreeViewEnabledInput.checked = generalDraftGlobal.tree_view_enabled ?? false;
@@ -5583,6 +5595,7 @@ function commitGeneralSettingsForm(): void {
   if (Number.isFinite(pollInterval)) generalDraftGlobal.poll_interval_seconds = pollInterval;
   const maxPosts = Number.parseInt(generalMaxPostsInput.value, 10);
   if (Number.isFinite(maxPosts)) generalDraftGlobal.max_posts = maxPosts;
+  generalDraftGlobal.show_bbs_timeline_switcher = generalShowBbsTimelineSwitcherInput.checked;
   generalDraftGlobal.show_participant_counts = generalShowParticipantCountsInput.checked;
   generalDraftGlobal.post_saving_enabled = generalPostSavingEnabledInput.checked;
   generalDraftGlobal.tree_view_enabled = generalTreeViewEnabledInput.checked;

@@ -14,6 +14,8 @@ poll_interval_seconds = 90
 max_posts = 666
 post_saving_enabled = true
 show_participant_counts = true
+# 左ナビにBBS表示切替を表示する。
+show_bbs_timeline_switcher = false
 # newest_first: 新しい投稿を上 / oldest_first: 古い投稿を上
 post_order = "newest_first"
 
