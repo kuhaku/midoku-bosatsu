@@ -1415,8 +1415,10 @@ button:disabled { cursor: default; opacity: .45; }
     position: static;
     grid-column: auto;
     grid-row: auto;
-    grid-template-columns: repeat(7, max-content);
-    justify-content: start;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    padding-inline-end: 44px;
   }
   .mobile-timeline-navigation-toggle {
     display: block;
@@ -1450,6 +1452,21 @@ button:disabled { cursor: default; opacity: .45; }
     width: auto;
     padding-inline: 4px;
   }
+  /* Keep button text accessible while showing only the bundled icons. */
+  .timeline-navigation > button,
+  .bbs-timeline-switcher > button {
+    min-width: 32px;
+    min-height: 40px;
+    font-size: 0;
+    text-align: center;
+  }
+  .timeline-navigation > button::before,
+  .bbs-timeline-switcher > button::before {
+    font-size: var(--system-font-size);
+    margin-inline-end: 0;
+    vertical-align: middle;
+  }
+  #bbs-timeline-switcher-button::after { display: none; }
   .bbs-timeline-menu button { width: 100%; }
   .fixed-status-main { gap: 12px; }
 }
