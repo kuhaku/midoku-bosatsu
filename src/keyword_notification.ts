@@ -2,14 +2,16 @@ import { normalizeKeywordWidth, normalizeKeywordPattern, keywordWidthMap } from 
 import { parsePostLog, type StoredPost } from './post_log.ts';
 
 export type KeywordTargets = { title: boolean; name: boolean; body: boolean };
-export type KeywordRule = { id: string; name: string; query: string; regex: boolean; ignore_width?: boolean; highlight?: boolean; notify?: boolean; regex_unicode?: boolean; targets: KeywordTargets };
+export type KeywordRule = { id: string; name: string; shortcut?: string; query: string; regex: boolean; ignore_width?: boolean; highlight?: boolean; notify?: boolean; regex_unicode?: boolean; targets: KeywordTargets };
 export type KeywordEntry<T extends StoredPost> = { rule: KeywordRule; posts: Array<T & { keyword_unread: boolean }> };
 
 export function defaultKeywordTargets(): KeywordTargets {
   return { title: false, name: false, body: true };
 }
 
-export function validateKeywordRule(rule: KeywordRule): string | null {
+export function validateKeywordRule(rule: KeywordRule, rules: KeywordRule[] = []): string | null {
+  if (rule.shortcut !== undefined && (typeof rule.shortcut !== 'string' || !/^[0-9]?$/u.test(rule.shortcut))) return 'ショートカットは0〜9または割り当てなしを指定してください。';
+  if (rule.shortcut && rules.some(other => other.id !== rule.id && other.shortcut === rule.shortcut)) return 'このショートカットは他のルールで使用中です。';
   if (!rule.name.trim()) return 'キーワード検索ルール名を入力してください。';
   if (!rule.query.trim()) return 'キーワード検索ルールを入力してください。';
   if (!(rule.targets.title || rule.targets.name || rule.targets.body)) return '検索対象を1つ以上選択してください。';
@@ -85,7 +87,7 @@ export function parseKeywordNotifications<T extends StoredPost>(raw: string | nu
       || !['highlight', 'notify', 'regex_unicode'].every(field => rule[field] === undefined || typeof rule[field] === 'boolean')
       || (rule.ignore_width !== undefined && typeof rule.ignore_width !== 'boolean')
       || !rule.targets || !['title', 'name', 'body'].every(field => typeof rule.targets[field] === 'boolean')
-      || validateKeywordRule(rule) || !Array.isArray(entry.posts)) throw invalid();
+      || validateKeywordRule(rule, data.map(entry => entry?.rule).filter(Boolean)) || !Array.isArray(entry.posts)) throw invalid();
     ids.add(rule.id);
     const posts = parsePostLog(JSON.stringify(entry.posts));
     if (posts.length !== entry.posts.length || !posts.every(post => typeof post.keyword_unread === 'boolean')) throw invalid();
@@ -151,4 +153,16 @@ export function keywordHighlightRanges(rules: KeywordRule[], field: keyof Keywor
     else merged.push({ ...range });
   }
   return merged;
+}
+
+/** 旧ルールの登録順による割当を固定し、以後の削除・追加でずらさない。 */
+export function initializeKeywordShortcuts<T extends StoredPost>(entries: KeywordEntry<T>[]): KeywordEntry<T>[] {
+  const used = new Set(entries.map(entry => entry.rule.shortcut).filter(Boolean));
+  return entries.map((entry, index) => {
+    if (entry.rule.shortcut !== undefined) return entry;
+    const key = index < 9 ? String(index + 1) : index === 9 ? '0' : '';
+    const shortcut = used.has(key) ? '' : key;
+    if (shortcut) used.add(shortcut);
+    return { ...entry, rule: { ...entry.rule, shortcut } };
+  });
 }

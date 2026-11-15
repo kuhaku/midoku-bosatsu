@@ -1,5 +1,5 @@
 import {
-  collectKeywordPosts, defaultKeywordTargets, keywordPreviewMatches, keywordUnreadCount,
+  initializeKeywordShortcuts, collectKeywordPosts, defaultKeywordTargets, keywordPreviewMatches, keywordUnreadCount,
   parseKeywordStore, migrateLegacyHighlights, keywordHighlightRanges, keywordMatcher, readKeywordPosts, validateKeywordRule,
   type KeywordEntry, type KeywordRule, type KeywordTargets,
 } from './keyword_notification.ts';
@@ -102,6 +102,7 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
         updateCounts();
         renderSelected();
       });
+      if (entry.rule.shortcut) item.title = `Ctrl / Command + ${entry.rule.shortcut}`;
       item.setAttribute('aria-current', selectedId === entry.rule.id ? 'true' : 'false');
       list.append(item);
     }
@@ -129,6 +130,7 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
       </fieldset>
       <p class="keyword-form-help">通常は入力した文字列の部分一致で検索します。選択した対象のいずれかに一致すると、選択した動作を行います。</p>
       <p class="keyword-form-error" role="alert"></p>
+      <label>ショートカットキー（Ctrl / Command + 数字）<select name="shortcut"><option value="">割り当てなし</option></select></label>
       <button type="submit" class="primary-button">保存</button>
       <h3>キーワード検索ルールテスト用プレビュー</h3>
       <label>テスト用文字列<textarea name="test-text" rows="5" spellcheck="false" placeholder="検索ルールを試す文字列を入力してください"></textarea></label>
@@ -138,6 +140,16 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
     content.append(form);
     const input = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
     const defaults = existing?.rule.targets ?? defaultKeywordTargets();
+    const shortcutSelect = form.elements.namedItem('shortcut') as HTMLSelectElement;
+    for (const digit of '1234567890') {
+      const used = entries.some(entry => entry.rule.id !== existing?.rule.id && entry.rule.shortcut === digit);
+      const option = document.createElement('option');
+      option.value = digit;
+      option.textContent = used ? `${digit}（使用中）` : digit;
+      option.disabled = used;
+      shortcutSelect.append(option);
+    }
+    shortcutSelect.value = existing?.rule.shortcut ?? '';
     input('rule-name').value = existing?.rule.name ?? '';
     input('query').value = existing?.rule.query ?? '';
     input('regex').checked = existing?.rule.regex ?? false;
@@ -151,7 +163,7 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
     const submit = form.querySelector<HTMLButtonElement>('[type="submit"]')!;
     function readRule(): KeywordRule {
       return {
-        id: existing?.rule.id ?? '', regex_unicode: existing?.rule.regex_unicode, name: input('rule-name').value.trim(), query: input('query').value,
+        id: existing?.rule.id ?? '', shortcut: shortcutSelect.value, regex_unicode: existing?.rule.regex_unicode, name: input('rule-name').value.trim(), query: input('query').value,
         highlight: input('highlight').checked, notify: input('notify').checked,
         regex: input('regex').checked, ignore_width: input('ignore-width').checked,
         targets: { title: input('title').checked, name: input('name').checked, body: input('body').checked },
@@ -160,9 +172,9 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
     function updatePreview() {
       const rule = readRule();
       // プレビューはルール名未入力でも検索できる。
-      const issue = validateKeywordRule({ ...rule, name: rule.name || 'プレビュー' });
+      const issue = validateKeywordRule({ ...rule, name: rule.name || 'プレビュー' }, entries.map(entry => entry.rule));
       error.textContent = issue ?? '';
-      submit.disabled = loadFailed || validateKeywordRule(rule) !== null;
+      submit.disabled = loadFailed || validateKeywordRule(rule, entries.map(entry => entry.rule)) !== null;
       const text = input('test-text').value;
       preview.replaceChildren();
       if (issue) { preview.textContent = text; count.textContent = ''; return; }
@@ -188,7 +200,7 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
     form.addEventListener('submit', event => {
       event.preventDefault();
       const rule = readRule();
-      const issue = validateKeywordRule(rule);
+      const issue = validateKeywordRule(rule, entries.map(entry => entry.rule));
       if (issue || loadFailed) { error.textContent = issue ?? '保存データを読み込めないため追加できません。'; return; }
       if (!rule.id) rule.id = crypto.randomUUID();
       const current = entries.find(entry => entry.rule.id === rule.id);
@@ -272,12 +284,20 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
     clearContent();
     if (restoreFocus && wasOpen) options.button.focus();
   }
+  function openForShortcut(key: string): boolean {
+    if (!loaded || (!root.hidden && editorOpen) || !/^[0-9]$/u.test(key)) return false;
+    const entry = entries.find(entry => entry.rule.shortcut === key);
+    if (!entry) return false;
+    selectedId = entry.rule.id;
+    open();
+    return true;
+  }
   closeButton.addEventListener('click', () => close(true));
   root.addEventListener('click', event => { if (event.target === root) close(true); });
   options.button.addEventListener('click', open);
   toast.addEventListener('click', open);
   return {
-    root, content, open, close,
+    root, content, open, close, openForShortcut,
     highlightRanges: (field: keyof KeywordTargets, text: string) => keywordHighlightRanges(entries.map(entry => entry.rule), field, text),
     migrateHighlights(handle: string, body: string) {
       if (!loaded || loadFailed) return;
@@ -292,7 +312,7 @@ export function createKeywordNotificationView<T extends StoredPost>(options: Opt
     load() {
       try {
         const store = parseKeywordStore<T>(localStorage.getItem(STORAGE_KEY));
-        entries = store.entries;
+        entries = initializeKeywordShortcuts(store.entries);
         migratedHighlights = store.migrated_highlights;
       }
       catch (error) { loadFailed = true; options.reportError(`キーワード通知を読み込めませんでした: ${String(error)}`); }

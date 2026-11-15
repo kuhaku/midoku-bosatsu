@@ -136,3 +136,27 @@ test('旧キーワード保存形式は通知のみとして読み込め、新�
   assert.throws(() => kw.parseKeywordStore('{"entries":[],"migrated_highlights":false}'));
   assert.throws(() => kw.parseKeywordNotifications(JSON.stringify([entry(rule({ notify: 'false' }))])));
 });
+
+test('ショートカットは数字または未割当のみで、他ルールとの重複を拒否する', () => {
+  const existing = rule({ shortcut: '3' });
+  assert.equal(kw.validateKeywordRule(existing, [existing]), null);
+  assert.match(kw.validateKeywordRule(rule({ id: 'other', shortcut: '3' }), [existing]), /使用/);
+  for (const shortcut of ['', '0', '9']) assert.equal(kw.validateKeywordRule(rule({ shortcut })), null);
+  for (const shortcut of ['10', 'a', 1, null]) {
+    assert.match(kw.validateKeywordRule(rule({ shortcut })), /ショートカット/);
+    assert.throws(() => kw.parseKeywordNotifications(JSON.stringify([entry(rule({ shortcut }))])));
+  }
+  const saved = [entry(rule({ shortcut: '0' })), entry(rule({ id: 'none', shortcut: '' }))];
+  assert.deepEqual(kw.parseKeywordNotifications(JSON.stringify(saved)), saved);
+});
+
+test('既存の登録順ショートカットを固定し、保存復元・削除後も割当を維持する', () => {
+  const entries = Array.from({ length: 11 }, (_, i) => entry(rule({ id: String(i) })));
+  const next = kw.initializeKeywordShortcuts(entries);
+  assert.deepEqual(next.map(e => e.rule.shortcut), ['1','2','3','4','5','6','7','8','9','0','']);
+  const restored = kw.parseKeywordNotifications(JSON.stringify(next.slice(1)));
+  assert.deepEqual(kw.initializeKeywordShortcuts(restored), restored);
+  const mixed = kw.initializeKeywordShortcuts([entry(rule()), entry(rule({ id: 'custom', shortcut: '1' }))]);
+  assert.equal(mixed[0].rule.shortcut, '');
+  assert.equal(mixed[1].rule.shortcut, '1');
+});

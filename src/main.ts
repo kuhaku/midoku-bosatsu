@@ -533,6 +533,7 @@ app.innerHTML = `
             <dt><kbd>D</kbd></dt><dd>現在の投稿を保存／解除 (投稿保存設定がONの場合のみ)</dd>
             <dt><kbd>Ctrl + D / Command + D</kbd></dt><dd>保存済み投稿一覧を開く／閉じる (投稿保存設定がONの場合のみ)</dd>
             <dt><kbd>Ctrl + B / Command + B</kbd></dt><dd>左ナビを表示／非表示</dd>
+            <dt><kbd>Ctrl + 0〜9 / Command + 0〜9</kbd></dt><dd>設定した数字のキーワード通知ルールを表示</dd>
             <dt><kbd>Ctrl + Shift + 1〜9 / Command + Shift + 1〜9</kbd></dt><dd>登録順のBBS投稿だけを表示</dd>
             <dt><kbd>Ctrl + Shift + 0 / Command + Shift + 0</kbd></dt><dd>すべての掲示板を表示</dd>
           </dl>
@@ -4957,6 +4958,15 @@ function shouldHandleSavedPostsViewShortcut(event: KeyboardEvent): boolean {
   return savedPostsView.hidden ? Boolean(bbsActionView.hidden) : true;
 }
 
+function shouldHandleKeywordNotificationShortcut(event: KeyboardEvent): boolean {
+  if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.isComposing) return false;
+  if (!/^[0-9]$/u.test(event.key)) return false;
+  if (isEditableKeyboardTarget(event.target)) return false;
+  if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden) return false;
+  return Boolean(bbsActionView.hidden);
+}
+
 function shouldHandleBbsTimelineShortcut(event: KeyboardEvent): boolean {
   if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
   if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) return false;
@@ -7335,6 +7345,10 @@ document.addEventListener('keydown', async (event) => {
   if (event.key === 'Escape' && !postContextMenu.hidden) {
     event.preventDefault();
     closePostContextMenu();
+    return;
+  }
+  if (shouldHandleKeywordNotificationShortcut(event) && keywordNotifications.openForShortcut(event.key)) {
+    event.preventDefault();
     return;
   }
   if (keywordNotifications.isOpen() && bbsActionView.hidden && settingsDialog.hidden) {
