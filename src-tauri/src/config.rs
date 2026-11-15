@@ -24,9 +24,9 @@ pub struct GlobalConfig {
     pub post_order: String,
     #[serde(default = "default_show_post_images")]
     pub show_post_images: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub show_fxtwitter_previews: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub show_youtube_previews: bool,
     #[serde(default)]
     pub show_twitter_card_previews: bool,
@@ -54,10 +54,12 @@ pub struct GlobalConfig {
     #[serde(default = "default_true")]
     pub show_participant_counts: bool,
     #[serde(default)]
+    pub show_bbs_timeline_switcher: bool,
+    #[serde(default)]
     pub hide_tree_link: bool,
     #[serde(default)]
     pub hide_thread_hide_link: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub expand_numeric_character_references: bool,
     #[serde(default)]
     pub ng_handle_patterns: String,
@@ -67,9 +69,9 @@ pub struct GlobalConfig {
     pub highlight_handle_patterns: String,
     #[serde(default)]
     pub highlight_body_patterns: String,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub reply_notification_enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub reply_notification_sound_enabled: bool,
     #[serde(default = "default_reply_notification_sound_kind")]
     pub reply_notification_sound_kind: String,
@@ -77,8 +79,6 @@ pub struct GlobalConfig {
     pub reply_notification_sound_custom_name: String,
     #[serde(default)]
     pub reply_notification_include_descendants: bool,
-    #[serde(default)]
-    pub confirm_post_close_on_escape: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +86,8 @@ struct GlobalFileConfig {
     #[serde(default = "default_config_version")]
     config_version: u32,
     global: GlobalConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bookmarks: Option<Vec<crate::bookmarks::Bookmark>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -347,7 +349,11 @@ pub(crate) fn validate_import_source(file_name: &str, source: &str) -> Result<()
         GLOBAL_FILE => {
             let file: GlobalFileConfig = toml::from_str(source)
                 .map_err(|e| format!("global.toml のTOML解析に失敗しました: {e}"))?;
-            validate_global_config(&file.global)
+            validate_global_config(&file.global)?;
+            if let Some(entries) = file.bookmarks {
+                crate::bookmarks::validate(&entries)?;
+            }
+            Ok(())
         }
         BBS_FILE => {
             let file: BbsFileConfig = toml::from_str(source)
@@ -575,6 +581,7 @@ fn ensure_user_config_paths(app: &AppHandle) -> Result<ConfigPaths, String> {
     copy_bundled_if_missing(app, BBS_FILE, &bbs_path)?;
     copy_bundled_if_missing(app, STYLE_FILE, &style_path)?;
     migrate_global_if_needed(app, &global_path)?;
+    crate::bookmarks::ensure_defaults(&global_path)?;
     migrate_bbs_if_needed(app, &bbs_path)?;
 
     Ok(ConfigPaths {
@@ -783,11 +790,25 @@ pub fn save_global_config(app: &AppHandle, global: GlobalConfig) -> Result<(), S
     let next = GlobalFileConfig {
         config_version,
         global,
+        bookmarks: crate::bookmarks::load(&paths.global)?,
     };
     let serialized = toml::to_string_pretty(&next)
         .map_err(|e| format!("global.toml のTOML出力に失敗しました: {e}"))?;
     fs::write(&paths.global, serialized)
         .map_err(|e| format!("{} の更新に失敗しました: {e}", paths.global.display()))
+}
+
+pub fn load_bookmarks(app: &AppHandle) -> Result<Option<Vec<crate::bookmarks::Bookmark>>, String> {
+    let paths = ensure_user_config_paths(app)?;
+    crate::bookmarks::load(&paths.global)
+}
+
+pub fn save_bookmarks(
+    app: &AppHandle,
+    entries: Vec<crate::bookmarks::Bookmark>,
+) -> Result<(), String> {
+    let paths = ensure_user_config_paths(app)?;
+    crate::bookmarks::save(&paths.global, entries)
 }
 
 fn css_var(source: &str, name: &str) -> Option<String> {
@@ -1070,6 +1091,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn legacy_post_close_setting_is_ignored_and_not_saved() {
+        let source = r#"
+[global]
+poll_interval_seconds = 90
+max_posts = 666
+post_order = "newest_first"
+confirm_post_close_on_escape = true
+"#;
+        let config: GlobalFileConfig = toml::from_str(source).expect("legacy config should parse");
+        let saved = toml::to_string(&config).expect("config should serialize");
+        assert!(!saved.contains("confirm_post_close_on_escape"));
+    }
+
+    #[test]
     fn import_kind_rejects_unknown_files() {
         let error = validate_import_source("unknown.toml", "").expect_err("unknown kind must fail");
         assert!(error.contains("インポート対象"));
@@ -1124,19 +1159,107 @@ post_order = "newest_first"
     }
 
     #[test]
-    fn bundled_global_disables_fxtwitter_previews_by_default() {
-        let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
-            .expect("bundled global config should parse");
-
-        assert!(!config.global.show_fxtwitter_previews);
+    fn global_config_preserves_default_bookmark_when_serialized() {
+        let mut config: GlobalFileConfig =
+            toml::from_str(include_str!("../resources/global.toml")).unwrap();
+        config.global.max_posts = 123;
+        let value: toml::Value = toml::from_str(&toml::to_string_pretty(&config).unwrap()).unwrap();
+        assert_eq!(value["bookmarks"][0]["title"].as_str(), Some("未読菩薩"));
+        assert_eq!(
+            value["bookmarks"][0]["url"].as_str(),
+            Some("https://github.com/kuhaku/midoku-bosatsu")
+        );
+        config.bookmarks = Some(vec![]);
+        let restored: GlobalFileConfig =
+            toml::from_str(&toml::to_string_pretty(&config).unwrap()).unwrap();
+        assert_eq!(restored.bookmarks, Some(vec![]));
     }
 
     #[test]
-    fn bundled_global_disables_youtube_previews_by_default() {
+    fn bbs_timeline_switcher_defaults_hidden_and_preserves_saved_visibility() {
+        let bundled = include_str!("../resources/global.toml");
+        let mut source: toml::Value = toml::from_str(bundled).unwrap();
+        source["global"]
+            .as_table_mut()
+            .unwrap()
+            .remove("show_bbs_timeline_switcher");
+        for visible in [None, Some(true), Some(false)] {
+            if let Some(visible) = visible {
+                source["global"].as_table_mut().unwrap().insert(
+                    "show_bbs_timeline_switcher".into(),
+                    toml::Value::Boolean(visible),
+                );
+            }
+            let config: GlobalFileConfig =
+                toml::from_str(&toml::to_string(&source).unwrap()).unwrap();
+            let saved: toml::Value = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(
+                saved["global"]
+                    .get("show_bbs_timeline_switcher")
+                    .and_then(toml::Value::as_bool),
+                Some(visible.unwrap_or(false))
+            );
+        }
+        let config: GlobalFileConfig = toml::from_str(bundled).unwrap();
+        let saved: toml::Value = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+        assert_eq!(
+            saved["global"]["show_bbs_timeline_switcher"].as_bool(),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn enabled_defaults_preserve_explicit_disabled_settings() {
+        let bundled = include_str!("../resources/global.toml");
+        let keys = [
+            "expand_numeric_character_references",
+            "show_fxtwitter_previews",
+            "show_youtube_previews",
+            "reply_notification_enabled",
+            "reply_notification_sound_enabled",
+        ];
+        for state in [None, Some(false), Some(true)] {
+            let mut source: toml::Value = toml::from_str(bundled).unwrap();
+            for key in keys {
+                source["global"].as_table_mut().unwrap().remove(key);
+                if let Some(value) = state {
+                    source["global"]
+                        .as_table_mut()
+                        .unwrap()
+                        .insert(key.into(), toml::Value::Boolean(value));
+                }
+            }
+            let config: GlobalFileConfig =
+                toml::from_str(&toml::to_string(&source).unwrap()).unwrap();
+            let saved = toml::Value::try_from(config).unwrap();
+            for key in keys {
+                assert_eq!(
+                    saved["global"][key].as_bool(),
+                    Some(state.unwrap_or(true)),
+                    "{key}"
+                );
+            }
+        }
+        let source: toml::Value = toml::from_str(bundled).unwrap();
+        for key in keys {
+            assert_eq!(source["global"][key].as_bool(), Some(true), "{key}");
+        }
+    }
+
+    #[test]
+    fn bundled_global_enables_fxtwitter_previews_by_default() {
         let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
             .expect("bundled global config should parse");
 
-        assert!(!config.global.show_youtube_previews);
+        assert!(config.global.show_fxtwitter_previews);
+    }
+
+    #[test]
+    fn bundled_global_enables_youtube_previews_by_default() {
+        let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
+            .expect("bundled global config should parse");
+
+        assert!(config.global.show_youtube_previews);
     }
 
     #[test]

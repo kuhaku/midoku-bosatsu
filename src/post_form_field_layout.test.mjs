@@ -31,7 +31,7 @@ test('投稿者名とメールの入力欄だけを短い幅にする', () => {
   assert.equal(postFormFieldWidth('url'), 'fluid');
 });
 
-test('文字コード警告を内容フィールドの直前に配置する', () => {
-  assert.deepEqual(postFormFieldItemOrder('body'), ['encoding-warning', 'field']);
+test('内容フィールドの直前に警告、直後にURLパラメータ削除ボタンを配置する', () => {
+  assert.deepEqual(postFormFieldItemOrder('body'), ['encoding-warning', 'field', 'body-actions']);
   assert.deepEqual(postFormFieldItemOrder('url'), ['field']);
 });

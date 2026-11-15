@@ -4,12 +4,18 @@
 
 config_version = 6
 
+[[bookmarks]]
+title = "未読菩薩"
+url = "https://github.com/kuhaku/midoku-bosatsu"
+
 [global]
 # BBSへの過剰な負荷を避けるため30秒以上を推奨。実行時も最低30秒に制限する。
 poll_interval_seconds = 90
 max_posts = 666
 post_saving_enabled = true
 show_participant_counts = true
+# 左ナビにBBS表示切替を表示する。
+show_bbs_timeline_switcher = false
 # newest_first: 新しい投稿を上 / oldest_first: 古い投稿を上
 post_order = "newest_first"
 
@@ -18,11 +24,11 @@ post_order = "newest_first"
 show_post_images = true
 
 # X/Twitterの投稿リンクをFxTwitter APIで取得し、投稿カードとして表示する。
-# 外部サービスへの通信を伴うため、初期値はOFF。
-show_fxtwitter_previews = false
+# 外部サービスへの通信を伴います。初期値はON。
+show_fxtwitter_previews = true
 
-# YouTubeの動画リンクを埋め込みプレーヤーとして表示する。初期値はOFF。
-show_youtube_previews = false
+# YouTubeの動画リンクを静止画サムネイルとして表示する。初期値はON。
+show_youtube_previews = true
 
 # X/TwitterとYouTube以外のHTMLページをTwitter Cardとして表示する。初期値はOFF。
 show_twitter_card_previews = false
@@ -52,13 +58,9 @@ tree_view_enabled = false
 hide_tree_link = false
 hide_thread_hide_link = false
 
-# trueなら新規投稿・フォロー投稿画面でEscを押した際、閉じる前に確認する。
-# 初期値はOFF。
-confirm_post_close_on_escape = false
-
 # 本文中の &#123; / &#x1F600; のような数値文字参照をUnicode文字へ展開する。
-# 初期値はOFF。
-expand_numeric_character_references = false
+# 初期値はON。
+expand_numeric_character_references = true
 
 # NGワード。正規表現を指定する。GUIでは改行を | と同じOR条件として扱う。
 # ハンドルは「投稿者名・メールアドレス・題名」をまとめて判定する。
@@ -70,10 +72,10 @@ ng_body_patterns = ""
 highlight_handle_patterns = ""
 highlight_body_patterns = ""
 
-# レス通知。初期状態ではOFF。
-reply_notification_enabled = false
-# 通知音。初期状態ではOFF。
-reply_notification_sound_enabled = false
+# レス通知。初期状態ではON。
+reply_notification_enabled = true
+# 通知音。初期状態ではON。
+reply_notification_sound_enabled = true
 # default: bundled notify.ogg / custom: アプリデータ領域へコピーした独自音声
 reply_notification_sound_kind = "default"
 reply_notification_sound_custom_name = ""

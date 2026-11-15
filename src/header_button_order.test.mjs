@@ -11,7 +11,7 @@ test('左ナビに主要操作を指定順で置き、タイムライン見出�
   assert.ok(navigation, '左ナビが見つかりません');
   assert.deepEqual(
     [...navigation.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]),
-    ['未読リロード', 'BBS表示切替', '保存済み投稿', 'キー一覧', '新規投稿', '設定'],
+    ['未読リロード', 'レス一覧', 'キーワード通知', '保存済み投稿', 'BBS表示切替', '新規投稿', '設定', 'ショートカット'],
   );
   assert.doesNotMatch(navigation, /timeline-unread-jump-button/u);
   assert.doesNotMatch(mainSource, /<h1>未読菩薩<\/h1>/u);
@@ -123,13 +123,13 @@ test('ナビ開閉ボタンは枠線と背景色を表示しない', () => {
   );
 });
 
-test('1カラム表示では左ナビ由来のボタンを1行に並べる', () => {
+test('1カラム表示では左ナビ由来のボタンを折り返し可能な横並びにする', () => {
   const singleColumnMedia = styleSource.match(/@media \(max-width: 800px\)\s*\{([\s\S]*?)\n\}/u)?.[1];
 
   assert.ok(singleColumnMedia, '1カラム用のメディアクエリが見つかりません');
   assert.match(
     singleColumnMedia,
-    /\.timeline-navigation\s*\{[^}]*grid-template-columns:\s*repeat\(7, max-content\)[^}]*justify-content:\s*start/u,
+    /\.timeline-navigation\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/u,
   );
   assert.match(singleColumnMedia, /\.timeline-navigation button\s*\{[^}]*width:\s*auto/u);
   assert.match(singleColumnMedia, /\.timeline-navigation button\s*\{[^}]*padding-inline:\s*4px/u);

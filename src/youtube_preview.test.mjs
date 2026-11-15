@@ -56,7 +56,7 @@ test('YouTubeプレビューのタイトルはバックエンド経由で取得�
   assert.match(main, /invoke<string \| null>\('fetch_youtube_video_title', \{ videoId: reference\.id \}\)/u);
 });
 
-test('YouTubeプレビューは設定で無効化でき、初期値はOFFである', async () => {
+test('YouTubeプレビューは設定で無効化でき、初期値はONである', async () => {
   const { readFile } = await import('node:fs/promises');
   const [main, globalConfig] = await Promise.all([
     readFile(new URL('./main.ts', import.meta.url), 'utf8'),
@@ -66,7 +66,7 @@ test('YouTubeプレビューは設定で無効化でき、初期値はOFFであ�
   assert.match(main, /id="general-show-youtube-previews"/u);
   assert.match(main, /show_youtube_previews/u);
   assert.match(main, /appendYouTubePreviews\(body\)/u);
-  assert.match(globalConfig, /show_youtube_previews\s*=\s*false/u);
+  assert.match(globalConfig, /show_youtube_previews\s*=\s*true/u);
 });
 
 test('YouTubeプレビューの下余白を詰める', async () => {

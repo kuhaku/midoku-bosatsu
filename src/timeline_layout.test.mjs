@@ -45,3 +45,12 @@ test('現在の参加者表示がOFFのときは参加者欄のdiv自体を非�
     /\.bbs-participant-counts\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/u,
   );
 });
+
+test('参加者表示のBBSバナーは設定URLへの外部リンクとして開く', () => {
+  const renderSource = mainSource.slice(
+    mainSource.indexOf('function renderParticipantCounts()'),
+    mainSource.indexOf('function selectBbsTimeline('),
+  );
+  assert.match(renderSource, /createExternalLink\(item\.siteUrl, item\.siteName\)/u);
+  assert.match(mainSource, /bbsParticipantCounts\.addEventListener\('click', handlePostContentClick\)/u);
+});

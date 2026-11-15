@@ -1,6 +1,15 @@
+import type { KeywordTargets } from './keyword_notification.ts';
+import { removeOneUrlParameter } from './post_url_parameters.ts';
+import { convertPostBodyToHalfwidth } from './post_halfwidth.ts';
+import { bindPostEmoticonButton } from './post_emoticon.ts';
+import { createKeywordNotificationView } from './keyword_notification_view.ts';
+import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { createScreenZoomNotice, nextScreenZoom, screenZoomDirection } from './screen_zoom.ts';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { setupBookmarkNavigation } from './bookmark_navigation.ts';
 import { confirm as confirmDialog, open, save } from '@tauri-apps/plugin-dialog';
 import './style.css';
 import {
@@ -23,6 +32,7 @@ import {
   notificationButtonViewModel,
   notificationSoundMimeType,
   knownDescendantPostIds,
+  repliesToOwnPosts,
   chooseOldestUnreadReplyPostKey,
   replyNotificationPostPresentation,
   replyNotificationActions,
@@ -60,7 +70,7 @@ import {
   formatNewPostDestinationLabel,
   shouldConfirmNewPostSiteChange,
 } from './new_post_destination.ts';
-import { shouldRequestPostCloseConfirmation } from './post_close_confirmation.ts';
+import { createPostBodyChangeDetector, shouldRequestPostCloseConfirmation } from './post_close_confirmation.ts';
 import { isPostSubmitShortcut } from './post_submit_shortcut.ts';
 import {
   postFormFieldGroup,
@@ -137,6 +147,7 @@ type GlobalConfig = {
   tree_view_enabled: boolean;
   post_saving_enabled: boolean;
   show_participant_counts: boolean;
+  show_bbs_timeline_switcher: boolean;
   hide_tree_link: boolean;
   hide_thread_hide_link: boolean;
   expand_numeric_character_references: boolean;
@@ -149,7 +160,6 @@ type GlobalConfig = {
   reply_notification_sound_kind: 'default' | 'custom' | string;
   reply_notification_sound_custom_name: string;
   reply_notification_include_descendants: boolean;
-  confirm_post_close_on_escape: boolean;
 };
 
 type PostParserConfig = {
@@ -401,6 +411,7 @@ type ResetHiddenThread = { site_id: string; thread_id: string; created_at: strin
 
 const READ_CURSOR_STORAGE_KEY = 'midoku-bosatsu.read-cursor.v1';
 const POST_LOG_STORAGE_KEY = 'midoku-bosatsu.post-log.v1';
+const REPLY_ARCHIVE_STORAGE_KEY = 'midoku-bosatsu.reply-archive.v1';
 const SAVED_POSTS_STORAGE_KEY = 'midoku-bosatsu.saved-posts.v1';
 const TEXT_SEARCH_HISTORY_STORAGE_KEY = 'midoku-bosatsu.text-search-history.v1';
 const DEFAULT_VIEWING_MODE_INTERVAL_SECONDS = 5;
@@ -424,14 +435,17 @@ app.innerHTML = `
       <button id="timeline-navigation-toggle" class="timeline-navigation-toggle" type="button" aria-controls="timeline-navigation" aria-expanded="true" aria-label="ナビを閉じる" title="ナビを閉じる">‹</button>
       <nav id="timeline-navigation" class="timeline-navigation" aria-label="投稿タイムラインの操作">
         <button id="reload-button" class="primary-button" type="button">未読リロード</button>
-        <div class="bbs-timeline-switcher">
-          <button id="bbs-timeline-switcher-button" type="button" aria-haspopup="menu" aria-controls="bbs-timeline-menu">BBS表示切替</button>
-          <div id="bbs-timeline-menu" class="bbs-timeline-menu" role="menu" aria-label="表示するBBSを選択"></div>
-        </div>
+        <button id="reply-list-button" type="button">レス一覧</button>
+        <button id="keyword-notification-button" type="button" disabled>キーワード通知</button>
         <button id="saved-posts-button" type="button" hidden>保存済み投稿</button>
-        <button id="shortcut-key-list-button" type="button">キー一覧</button>
+        <div id="bbs-timeline-switcher" class="bbs-timeline-switcher" hidden>
+          <button id="bbs-timeline-switcher-button" type="button" aria-expanded="false" aria-controls="bbs-timeline-menu">BBS表示切替</button>
+          <div id="bbs-timeline-menu" class="bbs-timeline-menu" hidden role="menu" aria-label="表示するBBSを選択"></div>
+        </div>
         <button id="new-post-button" type="button" disabled>新規投稿</button>
         <button id="settings-button" type="button" disabled>設定</button>
+        <button id="shortcut-key-list-button" type="button">ショートカット</button>
+        <div id="bookmark-navigation" class="bookmark-navigation"></div>
       </nav>
 
       <div class="timeline-content">
@@ -479,6 +493,7 @@ app.innerHTML = `
         <div>
           <h2 id="saved-posts-view-title">保存済み投稿</h2>
         </div>
+        <div id="reply-list-header-actions"></div>
         <button id="saved-posts-view-close" class="icon-button" type="button" aria-label="保存済み投稿を閉じる">閉じる</button>
       </header>
       <div id="saved-posts-view-content" class="bbs-action-view-content"></div>
@@ -495,6 +510,14 @@ app.innerHTML = `
       </header>
       <div class="bbs-action-view-content shortcut-key-list-view-content">
         <p class="shortcut-key-list-note">投稿タイムラインのショートカットは、一般設定でキーボード操作を有効にしている場合に使えます。</p>
+        <section aria-labelledby="shortcut-key-list-zoom-title">
+          <h3 id="shortcut-key-list-zoom-title">画面全体（すべての画面で有効）</h3>
+          <dl class="shortcut-key-list">
+            <dt><kbd>Ctrl + , / Command + ,</kbd></dt><dd>設定画面を開く</dd>
+            <dt><kbd>Ctrl + - / Command + -</kbd></dt><dd>画面全体を縮小（10%ずつ、最小50%）</dd>
+            <dt><kbd>Ctrl + Shift + - / Command + Shift + -</kbd></dt><dd>画面全体を拡大（10%ずつ、最大200%）</dd>
+          </dl>
+        </section>
         <section aria-labelledby="shortcut-key-list-post-navigation-title">
           <h3 id="shortcut-key-list-post-navigation-title">投稿タイムライン</h3>
           <dl class="shortcut-key-list">
@@ -510,8 +533,9 @@ app.innerHTML = `
             <dt><kbd>D</kbd></dt><dd>現在の投稿を保存／解除 (投稿保存設定がONの場合のみ)</dd>
             <dt><kbd>Ctrl + D / Command + D</kbd></dt><dd>保存済み投稿一覧を開く／閉じる (投稿保存設定がONの場合のみ)</dd>
             <dt><kbd>Ctrl + B / Command + B</kbd></dt><dd>左ナビを表示／非表示</dd>
-            <dt><kbd>Ctrl + 1〜9 / Command + 1〜9</kbd></dt><dd>登録順のBBS投稿だけを表示</dd>
-            <dt><kbd>Ctrl + 0 / Command + 0</kbd></dt><dd>すべての掲示板を表示</dd>
+            <dt><kbd>Ctrl + 0〜9 / Command + 0〜9</kbd></dt><dd>設定した数字のキーワード通知ルールを表示</dd>
+            <dt><kbd>Ctrl + Shift + 1〜9 / Command + Shift + 1〜9</kbd></dt><dd>登録順のBBS投稿だけを表示</dd>
+            <dt><kbd>Ctrl + Shift + 0 / Command + Shift + 0</kbd></dt><dd>すべての掲示板を表示</dd>
           </dl>
         </section>
         <section aria-labelledby="shortcut-key-list-post-compose-title">
@@ -638,6 +662,9 @@ app.innerHTML = `
                 <small>各BBSごとに保持する最大投稿数です。 (登録したBBSが 3 で、投稿表示上限数が 100 なら、最大で 3 * 100 = 300件の投稿を保持します)</small>
               </label>
               <label class="settings-check settings-check-card">
+                <input id="general-show-bbs-timeline-switcher" type="checkbox"> 左ナビに「BBS表示切替」を表示する
+              </label>
+              <label class="settings-check settings-check-card">
                 <input id="general-show-participant-counts" type="checkbox"> 現在の参加者を表示する
                 <small>ONのとき、投稿タイムラインの最上部に各BBSの現在の参加者数を表示します。</small>
               </label>
@@ -656,10 +683,6 @@ app.innerHTML = `
               <label class="settings-check settings-check-card">
                 <input id="general-hide-thread-hide-link" type="checkbox"> 「消」を表示する
                 <small>スレッドを非表示にするための「消」を表示します。</small>
-              </label>
-              <label class="settings-check settings-check-card">
-                <input id="general-confirm-post-close-on-escape" type="checkbox"> Escで投稿画面を閉じるときに確認する
-                <small>新規投稿・フォロー投稿の画面でEscを押すと、閉じる前に確認します。初期値はOFFです。</small>
               </label>
             </div>
           </details>
@@ -807,19 +830,11 @@ app.innerHTML = `
             <summary class="settings-section-heading">
               <div>
                 <h3>ハイライト</h3>
-                <p class="settings-section-description">正規表現に一致した文字列を強調表示します。1行ごとに別のパターンを書けます。改行は <code>|</code> と同じOR条件として扱います。</p>
+                <p class="settings-section-description">キーワード検索ルールに一致した文字列の表示色を設定します。</p>
               </div>
             </summary>
-            <div class="settings-grid ng-word-settings-grid">
-              <label class="settings-span-2">ハンドル（投稿者・題名）
-                <textarea id="general-highlight-handle-patterns" rows="6" spellcheck="false" placeholder="注目ユーザー&#10;重要|速報"></textarea>
-                <small>投稿者名・題名を対象にします。メールアドレス欄はハイライト対象に含めません。</small>
-              </label>
-              <label class="settings-span-2">本文
-                <textarea id="general-highlight-body-patterns" rows="6" spellcheck="false" placeholder="重要語&#10;https?://example\.com/&#10;緊急.*告知"></textarea>
-                <small>本文中で一致した文字列だけをハイライトします。空欄ならハイライトしません。</small>
-              </label>
-            </div>
+            <p class="settings-section-description">検索ルールはキーワード通知画面で管理できます。</p>
+            <button id="general-keyword-rules-button" type="button">キーワード通知でルールを管理</button>
             <div class="settings-grid highlight-style-settings-grid">
               <label>ハイライト文字色
                 <span class="highlight-color-controls">
@@ -1049,7 +1064,7 @@ app.innerHTML = `
           <div class="settings-section-heading">
             <div>
               <h3>一般設定</h3>
-              <p class="settings-section-description">一般設定をファイルとして保存したり、別の一般設定ファイルを読み込んだりできます。</p>
+              <p class="settings-section-description"><a href="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/global.toml" data-external-url="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/global.toml">GitHubにあるアプリ標準の一般設定ファイルを参照する</a></p>
             </div>
           </div>
           <div class="settings-inline-actions">
@@ -1061,7 +1076,7 @@ app.innerHTML = `
           <div class="settings-section-heading">
             <div>
               <h3>BBS設定</h3>
-              <p class="settings-section-description">BBS設定をファイルとして保存したり、別のBBS設定ファイルを読み込んだりできます。</p>
+              <p class="settings-section-description"><a href="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/bbs.toml" data-external-url="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/bbs.toml">GitHubにあるアプリ標準のBBS設定を参照する</a></p>
             </div>
           </div>
           <div class="settings-inline-actions">
@@ -1073,7 +1088,7 @@ app.innerHTML = `
           <div class="settings-section-heading">
             <div>
               <h3>表示スタイルCSS</h3>
-              <p class="settings-section-description">reader-style.cssをファイルとして保存したり、別の表示スタイルCSSを読み込んだりできます。</p>
+              <p class="settings-section-description"><a href="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/reader-style.css" data-external-url="https://raw.githubusercontent.com/kuhaku/midoku-bosatsu/refs/heads/main/src-tauri/resources/reader-style.css">GitHubにあるアプリ標準の表示スタイルCSSを参照する</a></p>
             </div>
           </div>
           <div class="settings-inline-actions">
@@ -1193,6 +1208,7 @@ app.innerHTML = `
     <button id="thread-hide-undo-button" type="button">戻す</button>
   </div>
   <div id="bbs-timeline-toast" class="bbs-timeline-toast" hidden role="status" aria-live="polite"></div>
+  <div id="screen-zoom-toast" class="bbs-timeline-toast screen-zoom-toast" popover="manual" role="status" aria-live="polite" aria-atomic="true"></div>
 `;
 
 const lastFetchElement = mustElement<HTMLElement>('#last-fetch');
@@ -1217,6 +1233,7 @@ const bbsActionViewContent = mustElement<HTMLDivElement>('#bbs-action-view-conte
 const bbsActionViewCloseButton = mustElement<HTMLButtonElement>('#bbs-action-view-close');
 const savedPostsView = mustElement<HTMLElement>('#saved-posts-view');
 const savedPostsViewContent = mustElement<HTMLDivElement>('#saved-posts-view-content');
+const replyListHeaderActions = mustElement<HTMLDivElement>('#reply-list-header-actions');
 const savedPostsViewCloseButton = mustElement<HTMLButtonElement>('#saved-posts-view-close');
 const postContextMenu = document.createElement('div');
 postContextMenu.className = 'post-context-menu';
@@ -1242,10 +1259,14 @@ const timelineLayout = mustElement<HTMLElement>('.timeline-layout');
 const timelineNavigation = mustElement<HTMLElement>('.timeline-navigation');
 const timelineNavigationToggle = mustElement<HTMLButtonElement>('#timeline-navigation-toggle');
 const mobileTimelineNavigationToggle = mustElement<HTMLButtonElement>('#mobile-timeline-navigation-toggle');
+const bbsTimelineSwitcher = mustElement<HTMLDivElement>('#bbs-timeline-switcher');
+const bbsTimelineSwitcherButton = mustElement<HTMLButtonElement>('#bbs-timeline-switcher-button');
 const bbsTimelineMenu = mustElement<HTMLDivElement>('#bbs-timeline-menu');
 const newPostButton = mustElement<HTMLButtonElement>('#new-post-button');
 const fixedNewPostButton = mustElement<HTMLButtonElement>('#fixed-new-post-button');
 const fixedNewestPostButton = mustElement<HTMLButtonElement>('#fixed-newest-post-button');
+const replyListButton = mustElement<HTMLButtonElement>('#reply-list-button');
+let postListViewMode: 'saved' | 'replies' = 'saved';
 const savedPostsButton = mustElement<HTMLButtonElement>('#saved-posts-button');
 const shortcutKeyListButton = mustElement<HTMLButtonElement>('#shortcut-key-list-button');
 const unreadJumpButton = mustElement<HTMLButtonElement>('#unread-jump-button');
@@ -1355,12 +1376,12 @@ const treeColorFieldsElement = mustElement<HTMLDivElement>('#tree-color-fields')
 const generalPollIntervalInput = mustElement<HTMLInputElement>('#general-poll-interval');
 const generalPollIntervalWarning = mustElement<HTMLElement>('#general-poll-interval-warning');
 const generalMaxPostsInput = mustElement<HTMLInputElement>('#general-max-posts');
+const generalShowBbsTimelineSwitcherInput = mustElement<HTMLInputElement>('#general-show-bbs-timeline-switcher');
 const generalShowParticipantCountsInput = mustElement<HTMLInputElement>('#general-show-participant-counts');
 const generalPostSavingEnabledInput = mustElement<HTMLInputElement>('#general-post-saving-enabled');
 const generalTreeViewEnabledInput = mustElement<HTMLInputElement>('#general-tree-view-enabled');
 const generalHideTreeLinkInput = mustElement<HTMLInputElement>('#general-hide-tree-link');
 const generalHideThreadHideLinkInput = mustElement<HTMLInputElement>('#general-hide-thread-hide-link');
-const generalConfirmPostCloseOnEscapeInput = mustElement<HTMLInputElement>('#general-confirm-post-close-on-escape');
 const generalShowImagesInput = mustElement<HTMLInputElement>('#general-show-images');
 const generalShowFxTwitterPreviewsInput = mustElement<HTMLInputElement>('#general-show-fxtwitter-previews');
 const generalShowYouTubePreviewsInput = mustElement<HTMLInputElement>('#general-show-youtube-previews');
@@ -1387,8 +1408,6 @@ const generalReplyNotificationChooseSoundButton = mustElement<HTMLButtonElement>
 const generalReplyNotificationResetSoundButton = mustElement<HTMLButtonElement>('#general-reply-notification-reset-sound');
 const generalNgHandlePatternsInput = mustElement<HTMLTextAreaElement>('#general-ng-handle-patterns');
 const generalNgBodyPatternsInput = mustElement<HTMLTextAreaElement>('#general-ng-body-patterns');
-const generalHighlightHandlePatternsInput = mustElement<HTMLTextAreaElement>('#general-highlight-handle-patterns');
-const generalHighlightBodyPatternsInput = mustElement<HTMLTextAreaElement>('#general-highlight-body-patterns');
 const generalHighlightTextColorPicker = mustElement<HTMLInputElement>('#general-highlight-text-color-picker');
 const generalHighlightTextColorInput = mustElement<HTMLInputElement>('#general-highlight-text-color');
 const generalHighlightBackgroundColorPicker = mustElement<HTMLInputElement>('#general-highlight-background-color-picker');
@@ -1542,7 +1561,11 @@ let textSearchHistoryIndex = -1;
 let currentPostKey: string | null = null;
 const isMacKeyboard = /Mac|iPhone|iPad|iPod/i.test(navigator.platform) || /Macintosh|Mac OS X/i.test(navigator.userAgent);
 const postsByKey = new Map<string, ParsedPost>();
+const pendingKeywordPosts = new Map<string, ParsedPost>();
 let savedPosts: SavedPost<ParsedPost>[] = [];
+let replyArchive: ReplyArchive<ParsedPost> = { posts: [], deleted: [] };
+let replyArchiveLoadFailed = false;
+const pendingReplyArchivePosts = new Map<string, ParsedPost>();
 const siteNames = new Map<string, string>();
 const siteBaseUrls = new Map<string, string>();
 const participantCounts = new Map<string, number | null>();
@@ -1557,8 +1580,6 @@ type SettingsTab = 'general' | 'bbs' | 'config-file' | 'reset' | 'version';
 let activeSettingsTab: SettingsTab = 'general';
 let ngHandleRegex: RegExp | null = null;
 let ngBodyRegex: RegExp | null = null;
-let highlightHandleRegex: RegExp | null = null;
-let highlightBodyRegex: RegExp | null = null;
 const MIN_UNREAD_RELOAD_INTERVAL_SECONDS = 30;
 let lastBbsRequestStartedAtMs = 0;
 let lastBbsDataFetchedAtMs: number | null = null;
@@ -1821,10 +1842,6 @@ function compileNgPattern(raw: string): RegExp | null {
   return compilePattern(raw, false);
 }
 
-function compileHighlightPattern(raw: string): RegExp | null {
-  return compilePattern(raw, true);
-}
-
 function refreshNgWordRegex(globalConfig: GlobalConfig): void {
   try {
     ngHandleRegex = compileNgPattern(globalConfig.ng_handle_patterns ?? '');
@@ -1838,71 +1855,32 @@ function refreshNgWordRegex(globalConfig: GlobalConfig): void {
   }
 }
 
-function refreshHighlightRegex(globalConfig: GlobalConfig): void {
-  try {
-    highlightHandleRegex = compileHighlightPattern(globalConfig.highlight_handle_patterns ?? '');
-  } catch {
-    highlightHandleRegex = null;
+function appendHighlightedText(text: string, target: Node, field: keyof KeywordTargets): void {
+  const ranges = keywordNotifications.highlightRanges(field, text);
+  let offset = 0;
+  for (const range of ranges) {
+    target.appendChild(document.createTextNode(text.slice(offset, range.start)));
+    const mark = document.createElement('span');
+    mark.className = 'post-highlight';
+    mark.textContent = text.slice(range.start, range.end);
+    target.appendChild(mark);
+    offset = range.end;
   }
-  try {
-    highlightBodyRegex = compileHighlightPattern(globalConfig.highlight_body_patterns ?? '');
-  } catch {
-    highlightBodyRegex = null;
-  }
+  target.appendChild(document.createTextNode(text.slice(offset)));
 }
 
-function regexMatchesText(regex: RegExp | null, text: string): boolean {
-  if (!regex || !text) return false;
-  regex.lastIndex = 0;
-  const matched = regex.test(text);
-  regex.lastIndex = 0;
-  return matched;
-}
-
-function appendHighlightedText(text: string, target: Node, regex: RegExp | null): void {
-  if (!regex || !text) {
-    target.appendChild(document.createTextNode(text));
-    return;
-  }
-
-
-  const matcher = new RegExp(regex.source, regex.flags);
-  let lastIndex = 0;
-  let hasMatch = false;
-  for (const match of text.matchAll(matcher)) {
-    const start = match.index ?? 0;
-    const matchedText = match[0];
-    if (start > lastIndex) target.appendChild(document.createTextNode(text.slice(lastIndex, start)));
-    if (matchedText.length > 0) {
-      const mark = document.createElement('span');
-      mark.className = 'post-highlight';
-      mark.textContent = matchedText;
-      target.appendChild(mark);
-      hasMatch = true;
-    }
-    lastIndex = start + matchedText.length;
-  }
-  if (!hasMatch) {
-    target.appendChild(document.createTextNode(text));
-    return;
-  }
-  if (lastIndex < text.length) target.appendChild(document.createTextNode(text.slice(lastIndex)));
-}
-
-function applyHighlightToTextNodes(root: HTMLElement, regex: RegExp | null): void {
-  if (!regex) return;
+function applyHighlightToTextNodes(root: HTMLElement): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) {
     if (walker.currentNode instanceof Text) nodes.push(walker.currentNode);
   }
-
   for (const node of nodes) {
     const parent = node.parentElement;
     if (!parent || parent.closest('.image-detail-link, .post-highlight')) continue;
-    if (!regexMatchesText(regex, node.data)) continue;
+    if (!keywordNotifications.highlightRanges('body', node.data).length) continue;
     const fragment = document.createDocumentFragment();
-    appendHighlightedText(node.data, fragment, regex);
+    appendHighlightedText(node.data, fragment, 'body');
     node.replaceWith(fragment);
   }
 }
@@ -1924,7 +1902,10 @@ function mergePosts(posts: ParsedPost[], markRead = false): void {
   for (const post of posts) {
     const key = postKey(post);
     const timelineRead = markRead || postsByKey.get(key)?.timeline_read === true || post.timeline_read === true;
-    postsByKey.set(key, timelineRead ? { ...post, timeline_read: true } : post);
+    const mergedPost = timelineRead ? { ...post, timeline_read: true } : post;
+    postsByKey.set(key, mergedPost);
+    pendingReplyArchivePosts.set(key, mergedPost);
+    pendingKeywordPosts.set(key, mergedPost);
     if (timelineRead) forcedUnreadPostKeys.delete(key);
   }
 
@@ -1936,6 +1917,8 @@ function mergePosts(posts: ParsedPost[], markRead = false): void {
     postsByKey.delete(postKey(post));
   }
 
+  const nextArchive = readArchivedReplies(replyArchive, posts.filter(post => pendingReplyArchivePosts.get(postKey(post))?.timeline_read));
+  if (nextArchive !== replyArchive) persistReplyArchive(nextArchive);
   persistPostLog();
 }
 
@@ -2082,6 +2065,8 @@ function loadReadCursor(): ReadCursor | null {
 
 function saveReadCursor(cursor: ReadCursor): void {
   readCursor = cursor;
+  const next = readArchivedReplies(replyArchive, replyArchive.posts.filter(post => !isPostUnread(post)));
+  if (next !== replyArchive) persistReplyArchive(next);
   try {
     localStorage.setItem(READ_CURSOR_STORAGE_KEY, JSON.stringify(cursor));
   } catch {
@@ -2152,6 +2137,7 @@ function isAtAppTop(): boolean {
  * 起動直後に最上部にいるだけでは既読化しない。
  */
 function handleReadOnTopScroll(): void {
+  if (keywordNotifications.isOpen()) return;
   const atTop = isAtAppTop();
 
   if (!atTop) {
@@ -2802,7 +2788,7 @@ function buildSafePostBody(
   }
 
   if (compactTreeQuotes) compactTreeQuotedArea(body, parentBodyText);
-  applyHighlightToTextNodes(body, highlightBodyRegex);
+  applyHighlightToTextNodes(body);
   appendFxTwitterPreviews(body);
   appendYouTubePreviews(body);
   appendTwitterCardPreviews(body);
@@ -3249,7 +3235,9 @@ function openPostContextMenu(event: MouseEvent): void {
   if (!key) return;
   const post = postsByKey.get(key)
     ?? bbsActionViewPosts.find((candidate) => postKey(candidate) === key)
-    ?? savedPosts.find((candidate) => postKey(candidate) === key);
+    ?? savedPosts.find((candidate) => postKey(candidate) === key)
+    ?? replyArchive.posts.find((candidate) => postKey(candidate) === key)
+    ?? keywordNotifications.findPost(key);
   if (!post) return;
 
   const entries = postContextMenuEntries({
@@ -3507,6 +3495,8 @@ async function refreshReplyNotificationUiState(): Promise<void> {
   try {
     const state = await invoke<TrackingUiState>('get_reply_notification_ui_state');
     replyNotificationUiState = state;
+    archivePendingReplies();
+    updateReplyList();
     setReplyNotificationFooterError(state.error?.trim() || null);
     updateNotificationButtons();
   } catch (error) {
@@ -3604,14 +3594,14 @@ function buildActionViewPost(post: ParsedPost, depth = 0): HTMLElement {
   if (normalizedTitle) {
     const title = document.createElement('span');
     title.className = 'post-subject';
-    appendHighlightedText(normalizedTitle, title, highlightHandleRegex);
+    appendHighlightedText(normalizedTitle, title, 'title');
     primary.append(title);
   }
 
   if (post.name.trim()) {
     const name = document.createElement('span');
     name.className = 'post-name';
-    appendHighlightedText(post.name.trim(), name, highlightHandleRegex);
+    appendHighlightedText(post.name.trim(), name, 'name');
     primary.append(name);
   }
 
@@ -3622,7 +3612,36 @@ function buildActionViewPost(post: ParsedPost, depth = 0): HTMLElement {
   return article;
 }
 
-function closeBbsActionView(): void {
+const postBodyChangeDetectors = new WeakMap<HTMLFormElement, () => boolean>();
+let postCloseConfirmationPending = false;
+
+async function closeBbsActionView(
+  options: { submitted?: boolean } = {},
+): Promise<boolean> {
+  if (bbsActionView.hidden) return true;
+  const form = bbsActionViewContent.querySelector<HTMLFormElement>('.bbs-follow-post-form');
+  const bodyChanged = form ? (postBodyChangeDetectors.get(form)?.() ?? false) : false;
+  if (!options.submitted && shouldRequestPostCloseConfirmation(
+    bbsActionViewIsPostCompose,
+    bodyChanged,
+  )) {
+    if (postCloseConfirmationPending) return false;
+    postCloseConfirmationPending = true;
+    const requestSerial = bbsActionViewRequestSerial;
+    try {
+      const confirmed = await confirmDialog(
+        bodyChanged ? '内容が変更されています。入力内容を破棄して投稿画面を閉じますか？' : '投稿画面を閉じますか？',
+        { title: '投稿画面を閉じる', kind: 'warning', okLabel: '閉じる', cancelLabel: 'キャンセル' },
+      );
+      if (!confirmed || bbsActionView.hidden || requestSerial !== bbsActionViewRequestSerial
+        || form !== bbsActionViewContent.querySelector('.bbs-follow-post-form')) return false;
+    } catch (error) {
+      setFooterError(`投稿画面を閉じる確認ができませんでした: ${String(error)}`);
+      return false;
+    } finally {
+      postCloseConfirmationPending = false;
+    }
+  }
   bbsActionViewPosts = [];
   bbsActionViewIsPostCompose = false;
   bbsActionView.hidden = true;
@@ -3630,6 +3649,7 @@ function closeBbsActionView(): void {
   clearObservedTwitterCardPreviews(bbsActionViewContent);
   bbsActionViewContent.replaceChildren();
   restoreCurrentPostSelection();
+  return true;
 }
 
 function formatSavedAt(savedAt: string): string {
@@ -3645,7 +3665,105 @@ function formatSavedAt(savedAt: string): string {
   }).format(date);
 }
 
+function persistReplyArchive(next: ReplyArchive<ParsedPost>): void {
+  if (replyArchiveLoadFailed) return;
+  replyArchive = next;
+  try {
+    localStorage.setItem(REPLY_ARCHIVE_STORAGE_KEY, JSON.stringify(next));
+  } catch (error) {
+    setFooterError(`レス一覧を保存できませんでした: ${String(error)}`);
+  }
+}
+
+function archivePendingReplies(): void {
+  const candidates = [...postsByKey.values(), ...pendingReplyArchivePosts.values()];
+  const next = addArchivedReplies(replyArchive, repliesToOwnPosts(candidates, replyNotificationUiState), isPostUnread);
+  if (next !== replyArchive) persistReplyArchive(next);
+  pendingReplyArchivePosts.clear();
+}
+
+function ownReplyPosts(): ArchivedReply<ParsedPost>[] {
+  return filterHiddenThreadPosts(replyArchive.posts, hiddenThreadKeys)
+    .filter(post => !isNgPost(post)).sort(compareNewestFirst);
+}
+
+function replyUnreadCount(posts = ownReplyPosts()): number {
+  return posts.filter(post => post.reply_unread).length;
+}
+
+function updateReplyList(): void {
+  const count = replyUnreadCount();
+  replyListButton.textContent = count > 0 ? `レス一覧 (${count})` : 'レス一覧';
+  if (!savedPostsView.hidden && postListViewMode === 'replies') renderSavedPosts();
+}
+
+function renderOwnReplies(): void {
+  const posts = ownReplyPosts();
+  const fragment = document.createDocumentFragment();
+  const markRepliesReadButton = document.createElement('button');
+  markRepliesReadButton.type = 'button';
+  markRepliesReadButton.textContent = '表示中のレスを全て既読にする';
+  markRepliesReadButton.disabled = replyUnreadCount(posts) === 0;
+  markRepliesReadButton.addEventListener('click', () => {
+    for (const post of posts) {
+      const livePost = postsByKey.get(postKey(post));
+      if (livePost) postsByKey.set(postKey(post), { ...livePost, timeline_read: true });
+      forcedUnreadPostKeys.delete(postKey(post));
+    }
+    persistReplyArchive(readArchivedReplies(replyArchive, posts));
+    persistPostLog();
+    renderPosts();
+  });
+  replyListHeaderActions.replaceChildren(markRepliesReadButton);
+  for (const post of posts) {
+    const article = buildActionViewPost(post);
+    const unread = post.reply_unread;
+    article.classList.toggle('post-unread', unread);
+    article.dataset.unread = String(unread);
+    const meta = article.querySelector<HTMLElement>('.post-meta-primary');
+    const site = document.createElement('span');
+    site.className = `site-badge ${bbsBadgeClassName(post.site_id)}`;
+    site.textContent = siteNames.get(post.site_id) ?? post.site_id;
+    meta?.append(site);
+    if (unread) {
+      const badge = document.createElement('span');
+      badge.className = 'unread-badge';
+      badge.textContent = '未読';
+      meta?.append(badge);
+    }
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'saved-post-remove-button';
+    remove.textContent = '削除';
+    remove.setAttribute('aria-label', 'このレスを一覧から削除する');
+    remove.addEventListener('click', () => {
+      persistReplyArchive(deleteArchivedReply(replyArchive, post));
+      updateReplyList();
+    });
+    meta?.append(remove);
+    fragment.append(article);
+  }
+  if (posts.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'bbs-action-view-message';
+    empty.textContent = '表示できるレスはありません。';
+    fragment.append(empty);
+  }
+  clearObservedTwitterCardPreviews(savedPostsViewContent);
+  savedPostsViewContent.replaceChildren(fragment);
+}
+
+function openReplyListView(): void {
+  postListViewMode = 'replies';
+  openPostListView();
+}
+
 function renderSavedPosts(): void {
+  replyListHeaderActions.replaceChildren();
+  if (postListViewMode === 'replies') {
+    renderOwnReplies();
+    return;
+  }
   const fragment = document.createDocumentFragment();
   const visibleSavedPosts = filterHiddenThreadPosts(savedPosts, hiddenThreadKeys);
   const treeGroupsByKey = new Map(
@@ -3704,6 +3822,15 @@ function renderSavedPosts(): void {
 
 function openSavedPostsView(): void {
   if (!(config?.global.post_saving_enabled ?? true)) return;
+  postListViewMode = 'saved';
+  openPostListView();
+}
+
+function openPostListView(): void {
+  keywordNotifications.close();
+  const title = postListViewMode === 'replies' ? 'レス一覧' : '保存済み投稿';
+  mustElement<HTMLElement>('#saved-posts-view-title').textContent = title;
+  savedPostsViewCloseButton.setAttribute('aria-label', `${title}を閉じる`);
   closeBbsActionView();
   closeShortcutKeyListView(false);
   closeTextSearch();
@@ -3723,6 +3850,7 @@ function closeSavedPostsView(): void {
 }
 
 function openShortcutKeyListView(): void {
+  keywordNotifications.close();
   closeBbsActionView();
   closeSavedPostsView();
   closeTextSearch();
@@ -3870,6 +3998,10 @@ function buildPostForm(
   encodingWarning.setAttribute('role', 'status');
   encodingWarning.setAttribute('aria-live', 'polite');
   encodingWarning.hidden = true;
+  const bodyActions = document.createElement('div');
+  bodyActions.className = 'bbs-follow-post-actions';
+  const removeUrlParameterButton = document.createElement('button');
+  const halfwidthButton = document.createElement('button');
   const elements = new Map<string, PostFormControlElement>();
   for (const control of postForm.controls) {
     const userField = control.user_field;
@@ -3885,7 +4017,7 @@ function buildPostForm(
       subjectActionRow.append(field);
     } else {
       for (const item of postFormFieldItemOrder(userField)) {
-        fields.append(item === 'encoding-warning' ? encodingWarning : field);
+        fields.append(item === 'encoding-warning' ? encodingWarning : item === 'body-actions' ? bodyActions : field);
       }
     }
   }
@@ -3909,6 +4041,31 @@ function buildPostForm(
     refreshEncodingWarning();
   });
 
+  postBodyChangeDetectors.set(form, createPostBodyChangeDetector(
+    postForm.controls
+      .filter((control) => control.user_field === 'body')
+      .flatMap((control) => {
+        const element = elements.get(control.id);
+        return element ? [element] : [];
+      }),
+  ));
+
+  const bodyControl = postForm.controls.find((control) => control.user_field === 'body');
+  const bodyElement = bodyControl ? elements.get(bodyControl.id) : undefined;
+  for (const emoticon of ['(;´Д`)', 'ヽ(´ー｀)ノ']) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = emoticon;
+    button.title = `${emoticon} を内容欄に挿入`;
+    if (bodyElement instanceof HTMLTextAreaElement || bodyElement instanceof HTMLInputElement) {
+      bindPostEmoticonButton(button, bodyElement, emoticon);
+    } else {
+      button.disabled = true;
+    }
+    bodyActions.append(button);
+  }
+  bodyActions.append(halfwidthButton, removeUrlParameterButton);
+
   const actions = document.createElement('div');
   actions.className = 'bbs-follow-post-actions';
   const submitButton = document.createElement('button');
@@ -3930,6 +4087,46 @@ function buildPostForm(
       bodyElement ??= element;
     }
     refreshEncodingWarning();
+    bodyElement?.focus();
+  });
+
+  halfwidthButton.type = 'button';
+  halfwidthButton.className = 'bbs-follow-post-halfwidth';
+  halfwidthButton.textContent = '半角カナに変換';
+  halfwidthButton.title = '引用行以外の全角カタカナ・英数字を半角に変換（ーは-に変換）';
+  halfwidthButton.addEventListener('click', () => {
+    let bodyElement: PostFormControlElement | null = null;
+    for (const control of postForm.controls) {
+      if (control.user_field !== 'body') continue;
+      const element = elements.get(control.id);
+      if (!element) continue;
+      const updated = convertPostBodyToHalfwidth(element.value);
+      if (updated !== element.value) {
+        element.value = updated;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      bodyElement ??= element;
+    }
+    bodyElement?.focus();
+  });
+
+  removeUrlParameterButton.type = 'button';
+  removeUrlParameterButton.className = 'bbs-follow-post-remove-url-parameter';
+  removeUrlParameterButton.textContent = 'URLパラメータを1つ削除';
+  removeUrlParameterButton.title = '引用行以外の各URLから末尾のクエリパラメータを1つ削除';
+  removeUrlParameterButton.addEventListener('click', () => {
+    let bodyElement: PostFormControlElement | null = null;
+    for (const control of postForm.controls) {
+      if (control.user_field !== 'body') continue;
+      const element = elements.get(control.id);
+      if (!element) continue;
+      const updated = removeOneUrlParameter(element.value);
+      if (updated !== element.value) {
+        element.value = updated;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      bodyElement ??= element;
+    }
     bodyElement?.focus();
   });
 
@@ -4059,7 +4256,7 @@ async function submitPostForm(
       await refreshReplyNotificationUiState();
       renderPosts();
       if (result.tracking_error.trim()) setReplyNotificationFooterError(result.tracking_error);
-      closeBbsActionView();
+      await closeBbsActionView({ submitted: true });
       return;
     }
 
@@ -4239,6 +4436,7 @@ async function openBbsActionView(siteId: string, href: string, kind: BbsActionKi
     if (kind === 'thread' || kind === 'tree') {
       result.posts = result.posts.map((post) => ({ ...post, timeline_read: true }));
       mergePosts(result.posts, true);
+      archivePendingReplies();
       renderPosts();
     }
     renderBbsActionViewResult(result, kind, false);
@@ -4269,7 +4467,8 @@ function visiblePostElements(): HTMLElement[] {
 function getCurrentShortcutPost(): ParsedPost | undefined {
   if (!currentPostKey) return undefined;
   if (!savedPostsView.hidden) {
-    return savedPosts.find((post) => postKey(post) === currentPostKey);
+    return (postListViewMode === 'replies' ? ownReplyPosts() : savedPosts)
+      .find((post) => postKey(post) === currentPostKey);
   }
   return (!bbsActionView.hidden && bbsActionViewPosts.length > 0 ? bbsActionViewPosts : [...postsByKey.values()])
     .find((post) => postKey(post) === currentPostKey);
@@ -4319,6 +4518,7 @@ function moveCurrentPost(delta: -1 | 1): void {
 }
 
 function moveToNextUnreadPost(): void {
+  if (keywordNotifications.isOpen()) return;
   if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden || !bbsActionView.hidden) return;
 
   const unreadPosts = sortedPosts()
@@ -4630,7 +4830,7 @@ function buildTreeNodeArticle(
   if (treeTitle) {
     const title = document.createElement('span');
     title.className = 'post-subject tree-post-subject';
-    appendHighlightedText(treeTitle, title, highlightHandleRegex);
+    appendHighlightedText(treeTitle, title, 'title');
     firstLine.append(title, document.createTextNode(' '));
   }
 
@@ -4638,7 +4838,7 @@ function buildTreeNodeArticle(
   if (treeAuthor) {
     const name = document.createElement('span');
     name.className = 'post-name tree-post-name';
-    appendHighlightedText(treeAuthor, name, highlightHandleRegex);
+    appendHighlightedText(treeAuthor, name, 'name');
     firstLine.append(name, document.createTextNode(' '));
   }
 
@@ -4758,10 +4958,19 @@ function shouldHandleSavedPostsViewShortcut(event: KeyboardEvent): boolean {
   return savedPostsView.hidden ? Boolean(bbsActionView.hidden) : true;
 }
 
+function shouldHandleKeywordNotificationShortcut(event: KeyboardEvent): boolean {
+  if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.isComposing) return false;
+  if (!/^[0-9]$/u.test(event.key)) return false;
+  if (isEditableKeyboardTarget(event.target)) return false;
+  if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden) return false;
+  return Boolean(bbsActionView.hidden);
+}
+
 function shouldHandleBbsTimelineShortcut(event: KeyboardEvent): boolean {
   if (!(config?.global.keyboard_shortcuts_enabled ?? true)) return false;
-  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return false;
-  if (!/^[0-9]$/u.test(event.key)) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) return false;
+  if (!/^(?:Digit|Numpad)[0-9]$/u.test(event.code)) return false;
   if (isEditableKeyboardTarget(event.target)) return false;
   if (!settingsDialog.hidden || !savedPostsView.hidden || !shortcutKeyListView.hidden || !textSearchBar.hidden) return false;
   return Boolean(bbsActionView.hidden);
@@ -4805,9 +5014,8 @@ function renderParticipantCounts(): void {
     const entry = document.createElement('span');
     entry.className = 'bbs-participant-count';
 
-    const badge = document.createElement('span');
+    const badge = createExternalLink(item.siteUrl, item.siteName);
     badge.className = `site-badge ${bbsBadgeClassName(item.siteId)}`;
-    badge.textContent = item.siteName;
 
     const count = document.createElement('span');
     count.className = 'bbs-participant-count-value';
@@ -4913,7 +5121,7 @@ function renderPosts(): void {
       if (normalizedTitle) {
         const title = document.createElement('span');
         title.className = 'post-subject';
-        appendHighlightedText(normalizedTitle, title, highlightHandleRegex);
+        appendHighlightedText(normalizedTitle, title, 'title');
         primaryMeta.append(title);
       }
 
@@ -4921,7 +5129,7 @@ function renderPosts(): void {
       if (normalizedName) {
         const name = document.createElement('span');
         name.className = 'post-name';
-        appendHighlightedText(normalizedName, name, highlightHandleRegex);
+        appendHighlightedText(normalizedName, name, 'name');
         primaryMeta.append(name);
       }
 
@@ -4959,6 +5167,9 @@ function renderPosts(): void {
   restoreCurrentPostSelection();
   updateUnreadControls(posts);
   renderReplyNotificationBanner();
+  updateReplyList();
+  keywordNotifications.sync([...postsByKey.values(), ...pendingKeywordPosts.values()]);
+  pendingKeywordPosts.clear();
 
   if (posts.length === 0) {
     noticeElement.hidden = false;
@@ -4985,6 +5196,11 @@ function formatFetchTime(iso: string): string {
 }
 
 function applyDisplayConfig(globalConfig: GlobalConfig): void {
+  bbsTimelineSwitcher.hidden = !(globalConfig.show_bbs_timeline_switcher ?? false);
+  if (bbsTimelineSwitcher.hidden) {
+    bbsTimelineMenu.hidden = true;
+    bbsTimelineSwitcherButton.setAttribute('aria-expanded', 'false');
+  }
   const root = document.documentElement.style;
   root.setProperty('--reader-image-max-height', `${globalConfig.max_image_height_px}px`);
   root.setProperty('--reader-image-hover-max-width', `${globalConfig.image_hover_window_percent}vw`);
@@ -4992,10 +5208,10 @@ function applyDisplayConfig(globalConfig: GlobalConfig): void {
   root.setProperty('--fxtwitter-video-thumbnail-size-px', `${globalConfig.fxtwitter_video_thumbnail_size_px}px`);
   root.setProperty('--youtube-video-thumbnail-size-px', `${globalConfig.youtube_video_thumbnail_size_px}px`);
   refreshNgWordRegex(globalConfig);
-  refreshHighlightRegex(globalConfig);
+  keywordNotifications.migrateHighlights(globalConfig.highlight_handle_patterns ?? '', globalConfig.highlight_body_patterns ?? '');
   const enabled = globalConfig.post_saving_enabled ?? true;
   savedPostsButton.hidden = !enabled;
-  if (!enabled && !savedPostsView.hidden) closeSavedPostsView();
+  if (!enabled && !savedPostsView.hidden && postListViewMode === 'saved') closeSavedPostsView();
   const shortcutKeyListVisible = isShortcutKeyListNavigationVisible(globalConfig.keyboard_shortcuts_enabled);
   shortcutKeyListButton.hidden = !shortcutKeyListVisible;
   if (!shortcutKeyListVisible && !shortcutKeyListView.hidden) closeShortcutKeyListView(false);
@@ -5070,6 +5286,7 @@ function switchSettingsTab(tab: SettingsTab): void {
 }
 
 function showSettingsDialog(tab: SettingsTab = 'general'): void {
+  keywordNotifications.close();
   switchSettingsTab(tab);
   settingsDialog.hidden = false;
   settingsDialog.classList.remove('is-closed');
@@ -5171,6 +5388,7 @@ async function importSettingsFile(fileName: 'global.toml' | 'bbs.toml'): Promise
       sourcePath,
     });
     if (fileName === 'global.toml') {
+      await bookmarkNavigation.reload();
       config = loadedConfig;
       generalDraftGlobal = structuredClone(loadedConfig.global);
       applyDisplayConfig(loadedConfig.global);
@@ -5305,12 +5523,12 @@ function renderGeneralSettingsForm(): void {
   generalPollIntervalInput.value = String(generalDraftGlobal.poll_interval_seconds);
   updatePollIntervalWarning();
   generalMaxPostsInput.value = String(generalDraftGlobal.max_posts);
+  generalShowBbsTimelineSwitcherInput.checked = generalDraftGlobal.show_bbs_timeline_switcher ?? false;
   generalShowParticipantCountsInput.checked = generalDraftGlobal.show_participant_counts ?? true;
   generalPostSavingEnabledInput.checked = generalDraftGlobal.post_saving_enabled ?? true;
   generalTreeViewEnabledInput.checked = generalDraftGlobal.tree_view_enabled ?? false;
   generalHideTreeLinkInput.checked = !(generalDraftGlobal.hide_tree_link ?? false);
   generalHideThreadHideLinkInput.checked = !(generalDraftGlobal.hide_thread_hide_link ?? false);
-  generalConfirmPostCloseOnEscapeInput.checked = generalDraftGlobal.confirm_post_close_on_escape ?? false;
   generalShowImagesInput.checked = generalDraftGlobal.show_post_images;
   generalShowFxTwitterPreviewsInput.checked = generalDraftGlobal.show_fxtwitter_previews ?? false;
   generalShowYouTubePreviewsInput.checked = generalDraftGlobal.show_youtube_previews ?? false;
@@ -5336,8 +5554,6 @@ function renderGeneralSettingsForm(): void {
   if (HEX_COLOR_RE.test(generalDraftStyle.current_post_border_color)) generalCurrentPostBorderColorPicker.value = generalDraftStyle.current_post_border_color;
   generalNgHandlePatternsInput.value = generalDraftGlobal.ng_handle_patterns ?? '';
   generalNgBodyPatternsInput.value = generalDraftGlobal.ng_body_patterns ?? '';
-  generalHighlightHandlePatternsInput.value = generalDraftGlobal.highlight_handle_patterns ?? '';
-  generalHighlightBodyPatternsInput.value = generalDraftGlobal.highlight_body_patterns ?? '';
   generalHighlightTextColorInput.value = generalDraftStyle.highlight_text_color.toLowerCase();
   if (HEX_COLOR_RE.test(generalDraftStyle.highlight_text_color)) generalHighlightTextColorPicker.value = generalDraftStyle.highlight_text_color;
   generalHighlightBackgroundColorInput.value = generalDraftStyle.highlight_background_color.toLowerCase();
@@ -5389,12 +5605,12 @@ function commitGeneralSettingsForm(): void {
   if (Number.isFinite(pollInterval)) generalDraftGlobal.poll_interval_seconds = pollInterval;
   const maxPosts = Number.parseInt(generalMaxPostsInput.value, 10);
   if (Number.isFinite(maxPosts)) generalDraftGlobal.max_posts = maxPosts;
+  generalDraftGlobal.show_bbs_timeline_switcher = generalShowBbsTimelineSwitcherInput.checked;
   generalDraftGlobal.show_participant_counts = generalShowParticipantCountsInput.checked;
   generalDraftGlobal.post_saving_enabled = generalPostSavingEnabledInput.checked;
   generalDraftGlobal.tree_view_enabled = generalTreeViewEnabledInput.checked;
   generalDraftGlobal.hide_tree_link = !generalHideTreeLinkInput.checked;
   generalDraftGlobal.hide_thread_hide_link = !generalHideThreadHideLinkInput.checked;
-  generalDraftGlobal.confirm_post_close_on_escape = generalConfirmPostCloseOnEscapeInput.checked;
   generalDraftGlobal.show_post_images = generalShowImagesInput.checked;
   generalDraftGlobal.show_fxtwitter_previews = generalShowFxTwitterPreviewsInput.checked;
   generalDraftGlobal.show_youtube_previews = generalShowYouTubePreviewsInput.checked;
@@ -5423,8 +5639,6 @@ function commitGeneralSettingsForm(): void {
   generalDraftStyle.current_post_border_color = generalCurrentPostBorderColorInput.value.trim().toLowerCase();
   generalDraftGlobal.ng_handle_patterns = generalNgHandlePatternsInput.value;
   generalDraftGlobal.ng_body_patterns = generalNgBodyPatternsInput.value;
-  generalDraftGlobal.highlight_handle_patterns = generalHighlightHandlePatternsInput.value;
-  generalDraftGlobal.highlight_body_patterns = generalHighlightBodyPatternsInput.value;
   generalDraftStyle.highlight_text_color = generalHighlightTextColorInput.value.trim().toLowerCase();
   generalDraftStyle.highlight_background_color = generalHighlightBackgroundColorInput.value.trim().toLowerCase();
 }
@@ -5557,10 +5771,6 @@ function validateGeneralSettings(): string | null {
   if (handleNgError) return handleNgError;
   const bodyNgError = validateNgPatterns('本文NGワード', generalDraftGlobal.ng_body_patterns ?? '');
   if (bodyNgError) return bodyNgError;
-  const handleHighlightError = validateNgPatterns('ハンドルのハイライト', generalDraftGlobal.highlight_handle_patterns ?? '');
-  if (handleHighlightError) return handleHighlightError;
-  const bodyHighlightError = validateNgPatterns('本文のハイライト', generalDraftGlobal.highlight_body_patterns ?? '');
-  if (bodyHighlightError) return bodyHighlightError;
   if (!HEX_COLOR_RE.test(generalDraftStyle.highlight_text_color)) return 'ハイライト文字色は #RRGGBB 形式で指定してください。';
   if (!HEX_COLOR_RE.test(generalDraftStyle.highlight_background_color)) return 'ハイライト背景色は #RRGGBB 形式で指定してください。';
   if (!HEX_COLOR_RE.test(generalDraftStyle.current_post_border_color)) return '現在の投稿の枠色は #RRGGBB 形式で指定してください。';
@@ -5736,11 +5946,6 @@ async function runFetchCycle(forceInitial = false): Promise<void> {
     const trackingErrors = successfulResults
       .map((result) => result.reply_notification_error?.trim() ?? '')
       .filter(Boolean);
-    await refreshReplyNotificationUiState();
-    if (trackingErrors.length > 0) {
-      setReplyNotificationFooterError(trackingErrors.join(' / '));
-    }
-
     const notificationActions = replyNotificationActions(
       config.global.reply_notification_enabled,
       config.global.reply_notification_sound_enabled,
@@ -5749,6 +5954,10 @@ async function runFetchCycle(forceInitial = false): Promise<void> {
     for (const postKey of notificationActions.reply_post_keys) {
       replyNotificationPostKeys.add(postKey);
       forcedUnreadPostKeys.add(postKey);
+    }
+    await refreshReplyNotificationUiState();
+    if (trackingErrors.length > 0) {
+      setReplyNotificationFooterError(trackingErrors.join(' / '));
     }
     renderPosts();
     if (notificationActions.play_sound) {
@@ -6407,6 +6616,7 @@ async function resetConfigToBundled(fileName: 'global.toml' | 'bbs.toml'): Promi
   try {
     const loadedConfig = await invoke<ReaderConfig>('reset_config_to_bundled', { fileName });
     if (fileName === 'global.toml') {
+      await bookmarkNavigation.reload();
       config = loadedConfig;
       generalDraftGlobal = structuredClone(loadedConfig.global);
       notificationSoundDraftPath = null;
@@ -6488,6 +6698,14 @@ async function bootstrap(): Promise<void> {
 
     applyReaderStyle(loadedStyle);
     applyDisplayConfig(loadedConfig.global);
+    try {
+      replyArchive = parseReplyArchive<ParsedPost>(localStorage.getItem(REPLY_ARCHIVE_STORAGE_KEY));
+    } catch (error) {
+      replyArchiveLoadFailed = true;
+      setFooterError(`レス一覧を読み込めませんでした: ${String(error)}`);
+    }
+    keywordNotifications.load();
+    keywordNotifications.migrateHighlights(loadedConfig.global.highlight_handle_patterns ?? '', loadedConfig.global.highlight_body_patterns ?? '');
     loadPostLog();
     loadSavedPosts();
     await refreshHiddenThreadKeys();
@@ -6659,7 +6877,53 @@ function handlePostContentCopy(event: ClipboardEvent): void {
   event.preventDefault();
 }
 
+const keywordNotifications = createKeywordNotificationView<ParsedPost>({
+  button: mustElement<HTMLButtonElement>('#keyword-notification-button'),
+  getPosts: visibleNewestFirstPosts,
+  visiblePosts: posts => filterHiddenThreadPosts(posts, hiddenThreadKeys).filter(post => !isNgPost(post)),
+  isUnread: post => isPostUnread(postsByKey.get(postKey(post)) ?? pendingKeywordPosts.get(postKey(post)) ?? post),
+  renderPost: post => {
+    const article = buildActionViewPost(post);
+    const site = document.createElement('span');
+    site.className = `site-badge ${bbsBadgeClassName(post.site_id)}`;
+    site.textContent = siteNames.get(post.site_id) ?? post.site_id;
+    article.querySelector('.post-meta-primary')?.append(site);
+    return article;
+  },
+  comparePosts: compareNewestFirst,
+  rulesChanged: () => renderPosts(),
+  markRead: posts => {
+    for (const post of posts) {
+      const live = postsByKey.get(postKey(post));
+      if (live) postsByKey.set(postKey(post), { ...live, timeline_read: true });
+      forcedUnreadPostKeys.delete(postKey(post));
+    }
+    const next = readArchivedReplies(replyArchive, posts);
+    if (next !== replyArchive) persistReplyArchive(next);
+    persistPostLog();
+    renderPosts();
+  },
+  beforeOpen: () => {
+    closeSavedPostsView();
+    closeBbsActionView();
+    closeShortcutKeyListView(false);
+    closeTextSearch();
+  },
+  clearPreviews: clearObservedTwitterCardPreviews,
+  reportError: setFooterError,
+});
+mustElement<HTMLButtonElement>('#general-keyword-rules-button').addEventListener('click', () => {
+  closeSettingsDialog();
+  if (settingsDialog.hidden) keywordNotifications.open();
+});
+keywordNotifications.content.addEventListener('click', handlePostContentClick);
+keywordNotifications.content.addEventListener('contextmenu', openPostContextMenu);
+keywordNotifications.content.addEventListener('mouseover', handleImageThumbnailMouseOver);
+keywordNotifications.content.addEventListener('mouseout', handleImageThumbnailMouseOut);
+
 postsElement.addEventListener('click', handlePostContentClick);
+bbsParticipantCounts.addEventListener('click', handlePostContentClick);
+configFileSettingsDialog.addEventListener('click', handlePostContentClick);
 postsElement.addEventListener('contextmenu', openPostContextMenu);
 postsElement.addEventListener('mouseover', handleImageThumbnailMouseOver);
 postsElement.addEventListener('mouseout', handleImageThumbnailMouseOut);
@@ -6668,7 +6932,7 @@ bbsActionViewContent.addEventListener('contextmenu', openPostContextMenu);
 bbsActionViewContent.addEventListener('mouseover', handleImageThumbnailMouseOver);
 bbsActionViewContent.addEventListener('mouseout', handleImageThumbnailMouseOut);
 document.addEventListener('copy', handlePostContentCopy);
-bbsActionViewCloseButton.addEventListener('click', closeBbsActionView);
+bbsActionViewCloseButton.addEventListener('click', () => { void closeBbsActionView(); });
 bbsActionView.addEventListener('click', (event) => {
   if (event.target === bbsActionView) closeBbsActionView();
 });
@@ -6784,6 +7048,7 @@ fixedNewestPostButton.addEventListener('click', () => {
   jumpToNewestPost();
 });
 
+replyListButton.addEventListener('click', openReplyListView);
 savedPostsButton.addEventListener('click', openSavedPostsView);
 
 shortcutKeyListButton.addEventListener('click', openShortcutKeyListView);
@@ -6795,6 +7060,13 @@ reloadButton.addEventListener('click', () => {
 unreadJumpButton.addEventListener('click', () => {
   jumpToUnreadBoundary();
 });
+
+bbsTimelineSwitcherButton.addEventListener('click', () => {
+  bbsTimelineMenu.hidden = !bbsTimelineMenu.hidden;
+  bbsTimelineSwitcherButton.setAttribute('aria-expanded', String(!bbsTimelineMenu.hidden));
+});
+
+const bookmarkNavigation = setupBookmarkNavigation(mustElement<HTMLElement>('#bookmark-navigation'), openUrl, setFooterError);
 
 timelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
 mobileTimelineNavigationToggle.addEventListener('click', toggleTimelineNavigation);
@@ -7047,10 +7319,44 @@ bbsSettingsForm.addEventListener('submit', (event) => {
   void saveBbsSettings();
 });
 
+let screenZoom = 1;
+let screenZoomUpdate = Promise.resolve();
+const showScreenZoomNotice = createScreenZoomNotice(mustElement<HTMLElement>('#screen-zoom-toast'));
+
 document.addEventListener('keydown', async (event) => {
+  if (event.key === ',' && (event.ctrlKey || event.metaKey)
+    && !event.altKey && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    if (settingsDialog.hidden) openSettings();
+    return;
+  }
+  const zoomDirection = screenZoomDirection(event);
+  if (zoomDirection !== 0) {
+    event.preventDefault();
+    screenZoomUpdate = screenZoomUpdate.then(async () => {
+      const nextZoom = nextScreenZoom(screenZoom, zoomDirection);
+      await getCurrentWebview().setZoom(nextZoom);
+      screenZoom = nextZoom;
+      syncFixedStatusBarHeight();
+      showScreenZoomNotice(screenZoom);
+    }).catch((error) => console.error('画面の拡大縮小に失敗しました', error));
+    return;
+  }
   if (event.key === 'Escape' && !postContextMenu.hidden) {
     event.preventDefault();
     closePostContextMenu();
+    return;
+  }
+  if (shouldHandleKeywordNotificationShortcut(event) && keywordNotifications.openForShortcut(event.key)) {
+    event.preventDefault();
+    return;
+  }
+  if (keywordNotifications.isOpen() && bbsActionView.hidden && settingsDialog.hidden) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      keywordNotifications.close(true);
+    }
+    // 編集中のキー入力や一覧操作を背後のタイムラインへ渡さない。
     return;
   }
   if (isTextSearchShortcut(event) && shortcutKeyListView.hidden) {
@@ -7069,7 +7375,7 @@ document.addEventListener('keydown', async (event) => {
     return;
   }
 
-  if (shouldHandleBbsTimelineShortcut(event) && selectBbsTimelineForShortcut(event.key)) {
+  if (shouldHandleBbsTimelineShortcut(event) && selectBbsTimelineForShortcut(event.code.slice(-1))) {
     event.preventDefault();
     return;
   }
@@ -7156,19 +7462,7 @@ document.addEventListener('keydown', async (event) => {
 
   if (event.key === 'Escape' && !bbsActionView.hidden) {
     event.preventDefault();
-    if (shouldRequestPostCloseConfirmation(
-      bbsActionViewIsPostCompose,
-      config?.global.confirm_post_close_on_escape ?? false,
-    )) {
-      const confirmed = await confirmDialog('投稿画面を閉じますか？', {
-        title: '投稿画面を閉じる',
-        kind: 'warning',
-        okLabel: '閉じる',
-        cancelLabel: 'キャンセル',
-      });
-      if (!confirmed) return;
-    }
-    closeBbsActionView();
+    await closeBbsActionView();
     return;
   }
 
