@@ -1,5 +1,6 @@
 import type { KeywordTargets } from './keyword_notification.ts';
 import { removeOneUrlParameter } from './post_url_parameters.ts';
+import { convertPostBodyToHalfwidth } from './post_halfwidth.ts';
 import { createKeywordNotificationView } from './keyword_notification_view.ts';
 import { addArchivedReplies, deleteArchivedReply, parseReplyArchive, readArchivedReplies, type ArchivedReply, type ReplyArchive } from './reply_archive.ts';
 import { invoke } from '@tauri-apps/api/core';
@@ -3966,7 +3967,8 @@ function buildPostForm(
   const bodyActions = document.createElement('div');
   bodyActions.className = 'bbs-follow-post-actions';
   const removeUrlParameterButton = document.createElement('button');
-  bodyActions.append(removeUrlParameterButton);
+  const halfwidthButton = document.createElement('button');
+  bodyActions.append(halfwidthButton, removeUrlParameterButton);
   const elements = new Map<string, PostFormControlElement>();
   for (const control of postForm.controls) {
     const userField = control.user_field;
@@ -4027,6 +4029,26 @@ function buildPostForm(
       bodyElement ??= element;
     }
     refreshEncodingWarning();
+    bodyElement?.focus();
+  });
+
+  halfwidthButton.type = 'button';
+  halfwidthButton.className = 'bbs-follow-post-halfwidth';
+  halfwidthButton.textContent = '半角カナに変換';
+  halfwidthButton.title = '引用行以外の全角カタカナ・英数字を半角に変換（ーは-に変換）';
+  halfwidthButton.addEventListener('click', () => {
+    let bodyElement: PostFormControlElement | null = null;
+    for (const control of postForm.controls) {
+      if (control.user_field !== 'body') continue;
+      const element = elements.get(control.id);
+      if (!element) continue;
+      const updated = convertPostBodyToHalfwidth(element.value);
+      if (updated !== element.value) {
+        element.value = updated;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      bodyElement ??= element;
+    }
     bodyElement?.focus();
   });
 
