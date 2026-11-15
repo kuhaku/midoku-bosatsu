@@ -13,4 +13,3 @@ src-tauri/gen/
 docs/*
 *AGENTS.md
 CODEX_*
-src-tauri/Cargo.lock
