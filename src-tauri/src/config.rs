@@ -24,9 +24,9 @@ pub struct GlobalConfig {
     pub post_order: String,
     #[serde(default = "default_show_post_images")]
     pub show_post_images: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub show_fxtwitter_previews: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub show_youtube_previews: bool,
     #[serde(default)]
     pub show_twitter_card_previews: bool,
@@ -59,7 +59,7 @@ pub struct GlobalConfig {
     pub hide_tree_link: bool,
     #[serde(default)]
     pub hide_thread_hide_link: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub expand_numeric_character_references: bool,
     #[serde(default)]
     pub ng_handle_patterns: String,
@@ -69,9 +69,9 @@ pub struct GlobalConfig {
     pub highlight_handle_patterns: String,
     #[serde(default)]
     pub highlight_body_patterns: String,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub reply_notification_enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub reply_notification_sound_enabled: bool,
     #[serde(default = "default_reply_notification_sound_kind")]
     pub reply_notification_sound_kind: String,
@@ -1209,19 +1209,57 @@ post_order = "newest_first"
     }
 
     #[test]
-    fn bundled_global_disables_fxtwitter_previews_by_default() {
-        let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
-            .expect("bundled global config should parse");
-
-        assert!(!config.global.show_fxtwitter_previews);
+    fn enabled_defaults_preserve_explicit_disabled_settings() {
+        let bundled = include_str!("../resources/global.toml");
+        let keys = [
+            "expand_numeric_character_references",
+            "show_fxtwitter_previews",
+            "show_youtube_previews",
+            "reply_notification_enabled",
+            "reply_notification_sound_enabled",
+        ];
+        for state in [None, Some(false), Some(true)] {
+            let mut source: toml::Value = toml::from_str(bundled).unwrap();
+            for key in keys {
+                source["global"].as_table_mut().unwrap().remove(key);
+                if let Some(value) = state {
+                    source["global"]
+                        .as_table_mut()
+                        .unwrap()
+                        .insert(key.into(), toml::Value::Boolean(value));
+                }
+            }
+            let config: GlobalFileConfig =
+                toml::from_str(&toml::to_string(&source).unwrap()).unwrap();
+            let saved = toml::Value::try_from(config).unwrap();
+            for key in keys {
+                assert_eq!(
+                    saved["global"][key].as_bool(),
+                    Some(state.unwrap_or(true)),
+                    "{key}"
+                );
+            }
+        }
+        let source: toml::Value = toml::from_str(bundled).unwrap();
+        for key in keys {
+            assert_eq!(source["global"][key].as_bool(), Some(true), "{key}");
+        }
     }
 
     #[test]
-    fn bundled_global_disables_youtube_previews_by_default() {
+    fn bundled_global_enables_fxtwitter_previews_by_default() {
         let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
             .expect("bundled global config should parse");
 
-        assert!(!config.global.show_youtube_previews);
+        assert!(config.global.show_fxtwitter_previews);
+    }
+
+    #[test]
+    fn bundled_global_enables_youtube_previews_by_default() {
+        let config: GlobalFileConfig = toml::from_str(include_str!("../resources/global.toml"))
+            .expect("bundled global config should parse");
+
+        assert!(config.global.show_youtube_previews);
     }
 
     #[test]

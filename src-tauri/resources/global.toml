@@ -24,11 +24,11 @@ post_order = "newest_first"
 show_post_images = true
 
 # X/Twitterの投稿リンクをFxTwitter APIで取得し、投稿カードとして表示する。
-# 外部サービスへの通信を伴うため、初期値はOFF。
-show_fxtwitter_previews = false
+# 外部サービスへの通信を伴います。初期値はON。
+show_fxtwitter_previews = true
 
-# YouTubeの動画リンクを埋め込みプレーヤーとして表示する。初期値はOFF。
-show_youtube_previews = false
+# YouTubeの動画リンクを静止画サムネイルとして表示する。初期値はON。
+show_youtube_previews = true
 
 # X/TwitterとYouTube以外のHTMLページをTwitter Cardとして表示する。初期値はOFF。
 show_twitter_card_previews = false
@@ -59,8 +59,8 @@ hide_tree_link = false
 hide_thread_hide_link = false
 
 # 本文中の &#123; / &#x1F600; のような数値文字参照をUnicode文字へ展開する。
-# 初期値はOFF。
-expand_numeric_character_references = false
+# 初期値はON。
+expand_numeric_character_references = true
 
 # NGワード。正規表現を指定する。GUIでは改行を | と同じOR条件として扱う。
 # ハンドルは「投稿者名・メールアドレス・題名」をまとめて判定する。
@@ -72,10 +72,10 @@ ng_body_patterns = ""
 highlight_handle_patterns = ""
 highlight_body_patterns = ""
 
-# レス通知。初期状態ではOFF。
-reply_notification_enabled = false
-# 通知音。初期状態ではOFF。
-reply_notification_sound_enabled = false
+# レス通知。初期状態ではON。
+reply_notification_enabled = true
+# 通知音。初期状態ではON。
+reply_notification_sound_enabled = true
 # default: bundled notify.ogg / custom: アプリデータ領域へコピーした独自音声
 reply_notification_sound_kind = "default"
 reply_notification_sound_custom_name = ""
